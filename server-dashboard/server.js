@@ -19,6 +19,8 @@ const io = new Server(server, {
 
 const PORT = process.env.PORT || 3000;
 const SECRET_PIN = process.env.SECRET_PIN || '123456';
+const ADMIN_USER = process.env.ADMIN_USER || 'baovy123';
+const ADMIN_PASS = process.env.ADMIN_PASS || 'baovy123';
 
 // Phục vụ giao diện Web Dashboard
 app.use(express.static(path.join(__dirname, 'public')));
@@ -128,22 +130,47 @@ io.on('connection', (socket) => {
         }
     });
 
-    // 2. XÁC THỰC WEB DASHBOARD
+    // 2. XÁC THỰC WEB DASHBOARD (Tài khoản & Mật khẩu chống phá web)
     socket.on('auth_dashboard', (data) => {
+        const username = data && data.username ? String(data.username).trim() : '';
+        const password = data && data.password ? String(data.password).trim() : '';
         const pin = data && data.pin ? String(data.pin).trim() : '';
-        if (pin === SECRET_PIN) {
+
+        // Xác thực bằng tài khoản/mật khẩu quản trị hoặc mã PIN bí mật
+        const isAuth = (username === ADMIN_USER && password === ADMIN_PASS) || 
+                       (!username && pin === SECRET_PIN);
+
+        if (isAuth) {
             clientType = 'dashboard';
             isAuthenticated = true;
             dashboardSockets.add(socket);
 
-            socket.emit('auth_result', { success: true, message: 'Dashboard Authenticated' });
-            console.log(`[Dashboard Connected] Total Dashboards: ${dashboardSockets.size}`);
+            socket.emit('auth_result', { 
+                success: true, 
+                message: 'Đăng nhập thành công',
+                username: ADMIN_USER 
+            });
+            console.log(`[Dashboard Authenticated] User: "${username || 'PIN'}" from ${socket.handshake.address} - Total Dashboards: ${dashboardSockets.size}`);
 
             // Gửi ngay danh sách thiết bị hiện tại về dashboard
             broadcastDeviceList();
         } else {
-            console.warn(`[Dashboard Auth Failed] Wrong PIN: ${pin}`);
-            socket.emit('auth_result', { success: false, message: 'Mã PIN bảo mật không đúng' });
+            console.warn(`[Dashboard Auth Failed] Invalid login: user="${username}" from ${socket.handshake.address}`);
+            socket.emit('auth_result', { 
+                success: false, 
+                message: 'Sai tên tài khoản hoặc mật khẩu! Vui lòng thử lại.' 
+            });
+        }
+    });
+
+    // 2.1 ĐĂNG XUẤT DASHBOARD
+    socket.on('logout_dashboard', () => {
+        if (clientType === 'dashboard') {
+            dashboardSockets.delete(socket);
+            isAuthenticated = false;
+            clientType = 'unknown';
+            console.log(`[Dashboard Logged Out] Socket ${socket.id}`);
+            socket.emit('logout_result', { success: true });
         }
     });
 
@@ -287,7 +314,7 @@ io.on('connection', (socket) => {
     });
 });
 
-server.listen({ port: PORT, host: '::', ipv6Only: false }, () => {
+server.listen(PORT, '0.0.0.0', () => {
     console.log('========================================================');
     console.log(`🚀 Remote Control Multi-Device Relay Server running on:`);
     console.log(`   Local IPv4:   http://127.0.0.1:${PORT}`);

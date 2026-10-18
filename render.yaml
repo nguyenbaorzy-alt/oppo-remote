@@ -9,3 +9,8 @@ services:
     envVars:
       - key: SECRET_PIN
         value: 123456
+      - key: ADMIN_USER
+        value: baovy123
+      - key: ADMIN_PASS
+        value: baovy123
+

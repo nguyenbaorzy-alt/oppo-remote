@@ -11,6 +11,61 @@
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 </head>
 <body class="dark-theme">
+    <!-- SECURITY LOGIN GATE (Chống phá web & Bảo mật 100%) -->
+    <div id="loginGateModal" class="login-gate-overlay">
+        <div class="login-gate-card">
+            <div class="login-header">
+                <div class="login-shield-icon">
+                    <i class="fa-solid fa-shield-halved"></i>
+                </div>
+                <h2>Xác Thực Bảo Mật</h2>
+                <p>Hệ Thống Điều Khiển Từ Xa OPPO ColorOS</p>
+            </div>
+
+            <form id="loginForm" class="login-form" autocomplete="on">
+                <div id="loginErrorMsg" class="login-error-msg hidden">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                    <span id="loginErrorText">Sai tài khoản hoặc mật khẩu!</span>
+                </div>
+
+                <div class="form-group">
+                    <label for="loginUsername">
+                        <i class="fa-solid fa-user text-cyan"></i> Tên tài khoản:
+                    </label>
+                    <input type="text" id="loginUsername" name="username" value="baovy123" placeholder="Nhập tài khoản" required autocomplete="username">
+                </div>
+
+                <div class="form-group">
+                    <label for="loginPassword">
+                        <i class="fa-solid fa-lock text-cyan"></i> Mật khẩu bảo vệ:
+                    </label>
+                    <div class="password-wrapper">
+                        <input type="password" id="loginPassword" name="password" value="" placeholder="Nhập mật khẩu" required autocomplete="current-password">
+                        <button type="button" id="btnTogglePassword" class="btn-toggle-eye" tabindex="-1" title="Hiện/ẩn mật khẩu">
+                            <i class="fa-solid fa-eye" id="eyeIcon"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="form-options">
+                    <label class="remember-label">
+                        <input type="checkbox" id="chkRememberLogin" checked>
+                        <span>Ghi nhớ đăng nhập trên thiết bị này</span>
+                    </label>
+                </div>
+
+                <button type="submit" id="btnLoginSubmit" class="btn-login-submit">
+                    <i class="fa-solid fa-arrow-right-to-bracket"></i>
+                    <span id="btnLoginText">ĐĂNG NHẬP HỆ THỐNG</span>
+                </button>
+            </form>
+
+            <div class="login-footer">
+                <small><i class="fa-solid fa-lock text-emerald"></i> Web được bảo vệ an toàn - Ngăn chặn người lạ phá hoại</small>
+            </div>
+        </div>
+    </div>
+
     <!-- Header -->
     <header class="top-nav">
         <div class="logo-area">
@@ -60,6 +115,13 @@
             <div class="status-chip">
                 <i class="fa-solid fa-bolt"></i>
                 <span id="pingCounter">-- ms</span>
+            </div>
+
+            <!-- User Auth & Logout Chip -->
+            <div class="status-chip user-chip" id="userAuthChip" style="cursor: pointer;" title="Tài khoản đang đăng nhập (Bấm để đăng xuất)">
+                <i class="fa-solid fa-user-shield text-cyan"></i>
+                <span id="userAuthName">baovy123</span>
+                <i class="fa-solid fa-right-from-bracket" style="font-size: 0.75rem; margin-left: 4px; color: #ef4444;" title="Đăng xuất"></i>
             </div>
         </div>
     </header>

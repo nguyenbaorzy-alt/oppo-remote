@@ -57,6 +57,21 @@ const authPinInput = document.getElementById('authPinInput');
 const btnConnectDashboard = document.getElementById('btnConnectDashboard');
 const phoneUnlockPin = document.getElementById('phoneUnlockPin');
 
+// Login Gate DOM Elements
+const loginGateModal = document.getElementById('loginGateModal');
+const loginForm = document.getElementById('loginForm');
+const loginUsername = document.getElementById('loginUsername');
+const loginPassword = document.getElementById('loginPassword');
+const btnTogglePassword = document.getElementById('btnTogglePassword');
+const eyeIcon = document.getElementById('eyeIcon');
+const chkRememberLogin = document.getElementById('chkRememberLogin');
+const btnLoginSubmit = document.getElementById('btnLoginSubmit');
+const btnLoginText = document.getElementById('btnLoginText');
+const loginErrorMsg = document.getElementById('loginErrorMsg');
+const loginErrorText = document.getElementById('loginErrorText');
+const userAuthChip = document.getElementById('userAuthChip');
+const userAuthName = document.getElementById('userAuthName');
+
 // Buttons
 const btnScreenOffSmart = document.getElementById('btnScreenOffSmart');
 const btnScreenOnSmart = document.getElementById('btnScreenOnSmart');
@@ -325,12 +340,33 @@ function initSocket() {
     });
 
     socket.on('connect', () => {
-        console.log('[Socket] Connected to Relay Server. Authenticating...');
-        authenticate();
+        console.log('[Socket] Connected to Relay Server.');
+        const savedUser = localStorage.getItem('oppo_auth_user');
+        const savedPass = localStorage.getItem('oppo_auth_pass');
+
+        if (savedUser && savedPass) {
+            console.log('[Auth] Tự động đăng nhập với tài khoản đã lưu...');
+            if (btnLoginSubmit) {
+                btnLoginSubmit.disabled = true;
+                if (btnLoginText) btnLoginText.textContent = 'Đang xác thực...';
+            }
+            socket.emit('auth_dashboard', { username: savedUser, password: savedPass });
+        } else {
+            console.log('[Auth] Chờ người dùng đăng nhập tài khoản / mật khẩu...');
+            if (loginGateModal) loginGateModal.classList.remove('hidden');
+            if (btnLoginSubmit) {
+                btnLoginSubmit.disabled = false;
+                if (btnLoginText) btnLoginText.textContent = 'ĐĂNG NHẬP HỆ THỐNG';
+            }
+        }
     });
 
     socket.on('connect_error', (err) => {
         console.warn('[Socket] Connection error:', err.message);
+        if (btnLoginSubmit && !isAuthenticated) {
+            btnLoginSubmit.disabled = false;
+            if (btnLoginText) btnLoginText.textContent = 'ĐĂNG NHẬP HỆ THỐNG';
+        }
         if (btnConnectDashboard && !isAuthenticated) {
             btnConnectDashboard.disabled = false;
             btnConnectDashboard.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> Kết Nối Lại';
@@ -344,18 +380,54 @@ function initSocket() {
     });
 
     socket.on('auth_result', (result) => {
+        if (btnLoginSubmit) {
+            btnLoginSubmit.disabled = false;
+            if (btnLoginText) btnLoginText.textContent = 'ĐĂNG NHẬP HỆ THỐNG';
+        }
         if (btnConnectDashboard) {
             btnConnectDashboard.disabled = false;
             btnConnectDashboard.innerHTML = '<i class="fa-solid fa-key"></i> Kết Nối';
         }
+
         if (result.success) {
-            console.log('[Auth] Dashboard authenticated successfully');
+            console.log('[Auth] Đăng nhập thành công:', result.username || 'baovy123');
             isAuthenticated = true;
-            screenOverlay.classList.add('hidden');
+
+            // Ẩn modal đăng nhập
+            if (loginGateModal) loginGateModal.classList.add('hidden');
+            if (loginErrorMsg) loginErrorMsg.classList.add('hidden');
+
+            const currentU = (loginUsername && loginUsername.value.trim()) || localStorage.getItem('oppo_auth_user') || 'baovy123';
+            if (userAuthName) userAuthName.textContent = currentU;
+            if (userAuthChip) userAuthChip.classList.remove('hidden');
+
+            // Ghi nhớ đăng nhập nếu người dùng chọn
+            if (chkRememberLogin && chkRememberLogin.checked) {
+                const p = (loginPassword && loginPassword.value.trim()) || localStorage.getItem('oppo_auth_pass') || '';
+                if (currentU && p) {
+                    localStorage.setItem('oppo_auth_user', currentU);
+                    localStorage.setItem('oppo_auth_pass', p);
+                }
+            }
+
+            if (isDeviceOnline) {
+                screenOverlay.classList.add('hidden');
+            } else {
+                const overlayDesc = document.getElementById('overlayDesc');
+                if (overlayDesc) {
+                    overlayDesc.innerHTML = `Đã xác thực tài khoản <strong>${currentU}</strong>.<br>Hãy mở ứng dụng trên điện thoại OPPO và bấm <em>"Bắt đầu kết nối"</em>`;
+                }
+            }
         } else {
-            console.error('[Auth] Authentication failed:', result.message);
-            alert('Lỗi xác thực: ' + (result.message || 'Mã PIN không đúng'));
-            screenOverlay.classList.remove('hidden');
+            console.error('[Auth] Đăng nhập thất bại:', result.message);
+            isAuthenticated = false;
+            localStorage.removeItem('oppo_auth_pass');
+            if (loginGateModal) loginGateModal.classList.remove('hidden');
+            showLoginError(result.message || 'Sai tên tài khoản hoặc mật khẩu!');
+            if (loginPassword) {
+                loginPassword.value = '';
+                loginPassword.focus();
+            }
         }
     });
 
@@ -459,8 +531,53 @@ function initSocket() {
     });
 }
 
+function performLogin(username, password) {
+    const user = (username || '').trim();
+    const pass = (password || '').trim();
+
+    if (!user || !pass) {
+        showLoginError('Vui lòng nhập đầy đủ tài khoản và mật khẩu!');
+        return;
+    }
+
+    if (btnLoginSubmit) {
+        btnLoginSubmit.disabled = true;
+        if (btnLoginText) btnLoginText.textContent = 'Đang xác thực...';
+    }
+    if (loginErrorMsg) loginErrorMsg.classList.add('hidden');
+
+    if (socket && socket.connected) {
+        socket.emit('auth_dashboard', { username: user, password: pass });
+    } else {
+        initSocket();
+        setTimeout(() => {
+            if (socket && socket.connected) {
+                socket.emit('auth_dashboard', { username: user, password: pass });
+            }
+        }, 600);
+    }
+}
+
+function showLoginError(msg) {
+    if (btnLoginSubmit) {
+        btnLoginSubmit.disabled = false;
+        if (btnLoginText) btnLoginText.textContent = 'ĐĂNG NHẬP HỆ THỐNG';
+    }
+    if (loginErrorMsg && loginErrorText) {
+        loginErrorText.textContent = msg;
+        loginErrorMsg.classList.remove('hidden');
+    }
+    if (loginGateModal) {
+        const card = loginGateModal.querySelector('.login-gate-card');
+        if (card) {
+            card.style.animation = 'none';
+            card.offsetHeight; // trigger reflow
+            card.style.animation = 'loginShake 0.4s ease-in-out';
+        }
+    }
+}
+
 function authenticate() {
-    const pin = (authPinInput.value || '123456').trim();
     const serverInput = document.getElementById('serverUrlInput');
     if (serverInput && serverInput.value.trim()) {
         const newUrl = serverInput.value.trim().replace(/\/+$/, '');
@@ -472,20 +589,13 @@ function authenticate() {
         }
     }
 
-    if (btnConnectDashboard) {
-        btnConnectDashboard.disabled = true;
-        btnConnectDashboard.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang xác thực...';
-    }
-    if (socket && socket.connected) {
-        socket.emit('auth_dashboard', { pin });
+    const savedUser = localStorage.getItem('oppo_auth_user') || (loginUsername ? loginUsername.value.trim() : 'baovy123');
+    const savedPass = localStorage.getItem('oppo_auth_pass') || (loginPassword ? loginPassword.value.trim() : '');
+
+    if (savedUser && savedPass) {
+        performLogin(savedUser, savedPass);
     } else {
-        if (socket) socket.connect();
-        setTimeout(() => {
-            if (btnConnectDashboard && !isAuthenticated) {
-                btnConnectDashboard.disabled = false;
-                btnConnectDashboard.innerHTML = '<i class="fa-solid fa-key"></i> Kết Nối';
-            }
-        }, 3000);
+        if (loginGateModal) loginGateModal.classList.remove('hidden');
     }
 }
 
@@ -1066,10 +1176,55 @@ function sendAutoUnlock() {
 /**
  * Attach Event Listeners to Buttons
  */
-btnConnectDashboard.addEventListener('click', authenticate);
-authPinInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') authenticate();
-});
+if (btnConnectDashboard) btnConnectDashboard.addEventListener('click', authenticate);
+if (authPinInput) {
+    authPinInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') authenticate();
+    });
+}
+
+// Login Gate Event Handlers
+if (loginForm) {
+    loginForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const u = loginUsername ? loginUsername.value.trim() : '';
+        const p = loginPassword ? loginPassword.value.trim() : '';
+        performLogin(u, p);
+    });
+}
+
+if (btnTogglePassword && loginPassword && eyeIcon) {
+    btnTogglePassword.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (loginPassword.type === 'password') {
+            loginPassword.type = 'text';
+            eyeIcon.classList.remove('fa-eye');
+            eyeIcon.classList.add('fa-eye-slash');
+        } else {
+            loginPassword.type = 'password';
+            eyeIcon.classList.remove('fa-eye-slash');
+            eyeIcon.classList.add('fa-eye');
+        }
+    });
+}
+
+if (userAuthChip) {
+    userAuthChip.addEventListener('click', () => {
+        if (confirm('Bạn có chắc chắn muốn đăng xuất tài khoản?')) {
+            localStorage.removeItem('oppo_auth_user');
+            localStorage.removeItem('oppo_auth_pass');
+            isAuthenticated = false;
+            if (socket && socket.connected) {
+                socket.emit('logout_dashboard');
+            }
+            if (loginGateModal) loginGateModal.classList.remove('hidden');
+            if (loginPassword) loginPassword.value = '';
+            if (loginErrorMsg) loginErrorMsg.classList.add('hidden');
+            if (userAuthChip) userAuthChip.classList.add('hidden');
+            screenOverlay.classList.remove('hidden');
+        }
+    });
+}
 
 const btnChangeServer = document.getElementById('btnChangeServer');
 if (btnChangeServer) {
