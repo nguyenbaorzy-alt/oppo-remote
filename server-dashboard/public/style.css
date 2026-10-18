@@ -190,6 +190,32 @@ body.dark-theme {
     overflow: hidden;
     display: flex;
     flex-direction: column;
+    transition: max-width 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Phone Chassis in Landscape Mode */
+.phone-chassis.landscape {
+    max-width: 780px;
+    border-radius: 36px;
+    border-width: 8px;
+}
+
+.phone-chassis.landscape .phone-speaker {
+    top: 50%;
+    left: 8px;
+    transform: translateY(-50%);
+    width: 4px;
+    height: 50px;
+}
+
+.phone-chassis.landscape .phone-punch-hole {
+    top: 50%;
+    left: 18px;
+    transform: translateY(-50%);
+}
+
+.dashboard-container:has(.phone-chassis.landscape) {
+    grid-template-columns: minmax(520px, 820px) 1fr;
 }
 
 /* Phone Bezel Features */

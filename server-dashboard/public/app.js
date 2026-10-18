@@ -158,16 +158,36 @@ function initSocket() {
         }
     });
 
+    const phoneChassis = document.getElementById('phoneChassis');
+
+    function applyOrientation(width, height, isLandscape) {
+        phoneResolution.width = width;
+        phoneResolution.height = height;
+        canvas.width = width;
+        canvas.height = height;
+
+        if (phoneChassis) {
+            if (isLandscape) {
+                phoneChassis.classList.add('landscape');
+                phoneChassis.style.maxWidth = '780px';
+                phoneChassis.style.aspectRatio = `${width} / ${height}`;
+            } else {
+                phoneChassis.classList.remove('landscape');
+                phoneChassis.style.maxWidth = '410px';
+                phoneChassis.style.aspectRatio = '9 / 19.5';
+            }
+        }
+
+        resolutionText.textContent = `Độ phân giải: ${width} x ${height} (${isLandscape ? 'Màn Hình Ngang' : 'Màn Hình Dọc'})`;
+        resTelemetry.textContent = `${width}x${height} ${isLandscape ? '🔄' : '📱'}`;
+    }
+
     function applyDeviceState(data) {
         updateOnlineStatus(Boolean(data.online));
 
         if (data.width && data.height) {
-            phoneResolution.width = data.width;
-            phoneResolution.height = data.height;
-            canvas.width = data.width;
-            canvas.height = data.height;
-            resolutionText.textContent = `Độ phân giải: ${data.width} x ${data.height}`;
-            resTelemetry.textContent = `${data.width}x${data.height}`;
+            const isLandscape = Boolean(data.isLandscape !== undefined ? data.isLandscape : data.width > data.height);
+            applyOrientation(data.width, data.height, isLandscape);
         }
 
         if (data.model) {
@@ -189,6 +209,14 @@ function initSocket() {
     socket.on('device_status', (data) => {
         if (!data) return;
         applyDeviceState(data);
+    });
+
+    // Cập nhật sự kiện xoay màn hình điện thoại tức thì (Ngang/Dọc)
+    socket.on('device_orientation', (data) => {
+        if (!data || !data.width || !data.height) return;
+        const isLandscape = Boolean(data.isLandscape !== undefined ? data.isLandscape : data.width > data.height);
+        console.log(`[Dashboard] Device Orientation Changed: ${data.width}x${data.height} (Landscape: ${isLandscape})`);
+        applyOrientation(data.width, data.height, isLandscape);
     });
 
     // Nhận khung hình nén từ thiết bị

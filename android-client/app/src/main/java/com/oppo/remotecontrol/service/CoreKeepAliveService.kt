@@ -11,6 +11,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.ServiceInfo
+import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.PixelFormat
 import android.hardware.display.DisplayManager
@@ -22,10 +23,13 @@ import android.media.projection.MediaProjectionManager
 import android.net.wifi.WifiManager
 import android.os.BatteryManager
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.os.PowerManager
 import android.util.DisplayMetrics
 import android.util.Log
+import android.view.Display
 import android.view.WindowManager
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
@@ -88,6 +92,8 @@ class CoreKeepAliveService : Service() {
     private var mediaProjection: MediaProjection? = null
     private var virtualDisplay: VirtualDisplay? = null
     private var imageReader: ImageReader? = null
+    private var displayManager: DisplayManager? = null
+    private var displayListener: DisplayManager.DisplayListener? = null
 
     // Kích thước & Cấu hình màn hình
     private var screenWidth = 1080
@@ -160,7 +166,26 @@ class CoreKeepAliveService : Service() {
         }
         registerReceiver(screenStateReceiver, screenFilter)
 
+        // Lắng nghe sự kiện xoay màn hình (Ngang/Dọc) từ DisplayManager
+        displayManager = getSystemService(Context.DISPLAY_SERVICE) as? DisplayManager
+        displayListener = object : DisplayManager.DisplayListener {
+            override fun onDisplayAdded(displayId: Int) {}
+            override fun onDisplayRemoved(displayId: Int) {}
+            override fun onDisplayChanged(displayId: Int) {
+                if (displayId == Display.DEFAULT_DISPLAY) {
+                    checkOrientationChange()
+                }
+            }
+        }
+        displayManager?.registerDisplayListener(displayListener, Handler(Looper.getMainLooper()))
+
         Log.i(TAG, "CoreKeepAliveService created")
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        Log.i(TAG, "onConfigurationChanged: orientation=${newConfig.orientation}")
+        checkOrientationChange()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -209,6 +234,9 @@ class CoreKeepAliveService : Service() {
         } catch (_: Exception) {}
         try {
             unregisterReceiver(screenStateReceiver)
+        } catch (_: Exception) {}
+        try {
+            displayManager?.unregisterDisplayListener(displayListener)
         } catch (_: Exception) {}
         instance = null
         isConnectedToSocket = false
@@ -412,6 +440,41 @@ class CoreKeepAliveService : Service() {
             Log.i(TAG, ">>> [refreshStream] Stream refreshed and buffer active.")
         } catch (e: Exception) {
             Log.e(TAG, "Error during stream refresh", e)
+        }
+    }
+
+    /**
+     * Tự động phát hiện khi xoay màn hình (Ngang/Dọc) và tái tạo ImageReader + VirtualDisplay
+     * để hình ảnh trên Web không bị co nhỏ (letterbox) và xoay theo đúng tỉ lệ màn hình
+     */
+    fun checkOrientationChange() {
+        val wm = getSystemService(Context.WINDOW_SERVICE) as? WindowManager ?: return
+        val metrics = DisplayMetrics()
+        @Suppress("DEPRECATION")
+        wm.defaultDisplay.getRealMetrics(metrics)
+
+        val newWidth = metrics.widthPixels
+        val newHeight = metrics.heightPixels
+        val newDensity = metrics.densityDpi
+
+        if (newWidth != screenWidth || newHeight != screenHeight) {
+            Log.i(TAG, ">>> [Orientation Change] Screen rotated: ${screenWidth}x${screenHeight} -> ${newWidth}x${newHeight}")
+            screenWidth = newWidth
+            screenHeight = newHeight
+            screenDensity = newDensity
+
+            refreshStream()
+
+            val isLandscape = screenWidth > screenHeight
+            serviceScope.launch {
+                val orientationData = JSONObject().apply {
+                    put("width", screenWidth)
+                    put("height", screenHeight)
+                    put("isLandscape", isLandscape)
+                }
+                socket?.emit("orientation_changed", orientationData)
+                socket?.emit("device_status_update", orientationData)
+            }
         }
     }
 

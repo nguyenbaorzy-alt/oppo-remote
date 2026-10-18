@@ -193,6 +193,21 @@ io.on('connection', (socket) => {
         }
     });
 
+    socket.on('orientation_changed', (data) => {
+        if (!isAuthenticated || clientType !== 'device') return;
+        if (socket.id === activeDeviceId) {
+            const dev = connectedDevices.get(socket.id);
+            if (dev) {
+                dev.state.width = data.width;
+                dev.state.height = data.height;
+                dev.state.isLandscape = Boolean(data.isLandscape);
+            }
+            for (const dashSocket of dashboardSockets) {
+                dashSocket.emit('device_orientation', data);
+            }
+        }
+    });
+
     // 6. CHUYỂN TIẾP LỆNH ĐIỀU KHIỂN TỪ WEB XUỐNG THIẾT BỊ ĐANG CHỌN
     function forwardToActiveDevice(event, data) {
         if (!isAuthenticated || clientType !== 'dashboard') return;
