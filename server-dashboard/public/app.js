@@ -240,19 +240,50 @@ function authenticate() {
     }
 }
 
+function drawPlaceholder() {
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#38bdf8';
+    ctx.font = 'bold 50px sans-serif';
+    ctx.fillText('📱 ĐANG CHỜ KẾT NỐI', canvas.width / 2, canvas.height / 2 - 160);
+
+    ctx.fillStyle = '#cbd5e1';
+    ctx.font = '32px sans-serif';
+    ctx.fillText('1. Mở App trên OPPO / Meizu', canvas.width / 2, canvas.height / 2 - 80);
+
+    ctx.fillStyle = '#cbd5e1';
+    ctx.font = '32px sans-serif';
+    ctx.fillText('2. Nhập chính xác ô Server URL:', canvas.width / 2, canvas.height / 2 - 20);
+
+    ctx.fillStyle = '#10b981';
+    ctx.font = 'bold 44px monospace';
+    ctx.fillText('http://192.168.30.102:3000', canvas.width / 2, canvas.height / 2 + 50);
+
+    ctx.fillStyle = '#f59e0b';
+    ctx.font = '32px sans-serif';
+    ctx.fillText('Mã PIN: 123456', canvas.width / 2, canvas.height / 2 + 120);
+
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '28px sans-serif';
+    ctx.fillText('3. Nhấn "Ghi Màn Hình & Bắt Đầu"', canvas.width / 2, canvas.height / 2 + 180);
+}
+
 function updateOnlineStatus(online) {
     isDeviceOnline = online;
     if (online) {
         pulseDot.className = 'pulse-dot online';
-        deviceStatusText.textContent = 'OPPO Đang Hoạt Động';
+        deviceStatusText.textContent = 'Thiết bị Đang Hoạt Động';
         deviceStatusText.style.color = 'var(--color-emerald)';
         screenOverlay.classList.add('hidden');
     } else {
         pulseDot.className = 'pulse-dot offline';
-        deviceStatusText.textContent = 'Thiết bị Offline';
+        deviceStatusText.textContent = 'Thiết bị Chưa Kết Nối';
         deviceStatusText.style.color = 'var(--color-danger)';
         fpsCounter.textContent = '0 FPS';
         dataRateCounter.textContent = '0 KB/s';
+        drawPlaceholder();
     }
 }
 
@@ -460,3 +491,4 @@ canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
 // Start Socket.IO
 initSocket();
+drawPlaceholder();

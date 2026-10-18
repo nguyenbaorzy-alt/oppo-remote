@@ -116,7 +116,7 @@
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- Thẻ Cấu Hình Máy Chủ (Server Config Card) -->
+        <!-- Thẻ Cấu Hình Máy Chủ Relay & Chuyển Đổi Mạng -->
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -135,46 +135,118 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginBottom="12dp"
-                    android:text="Cấu Hình Máy Chủ Relay"
+                    android:layout_marginBottom="8dp"
+                    android:text="Cấu Hình Máy Chủ &amp; Chuyển Đổi Mạng"
                     android:textColor="@color/text_primary"
                     android:textSize="16sp"
                     android:textStyle="bold" />
 
-                <!-- Server URL Input -->
+                <!-- Nút Chuyển Đổi 1 Chạm: Wi-Fi Nhà vs 4G Ngoài Đường -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="12dp">
+
+                    <Button
+                        android:id="@+id/btnModeWifi"
+                        style="@style/Widget.Material3.Button.TonalButton"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginEnd="6dp"
+                        android:text="🏠 Dùng Wi-Fi Nhà"
+                        android:textColor="@color/text_primary" />
+
+                    <Button
+                        android:id="@+id/btnModeInternet"
+                        style="@style/Widget.Material3.Button.TonalButton"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginStart="6dp"
+                        android:text="🌐 Dùng 4G Ngoài Đường"
+                        android:textColor="@color/text_primary" />
+                </LinearLayout>
+
+                <!-- 1. Thanh URL Wi-Fi Nội Bộ (Ở Nhà) -->
                 <com.google.android.material.textfield.TextInputLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginBottom="10dp"
-                    android:hint="Địa chỉ Server Relay (ví dụ: http://192.168.1.100:3000)"
+                    android:hint="1. Địa chỉ Wi-Fi ở nhà (LAN)"
                     app:boxStrokeColor="@color/color_success"
                     app:hintTextColor="@color/text_secondary">
 
                     <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/etServerUrl"
+                        android:id="@+id/etWifiUrl"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:inputType="textUri"
-                        android:text="http://192.168.1.5:3000"
+                        android:text="http://192.168.30.102:3000"
                         android:textColor="@color/text_primary" />
                 </com.google.android.material.textfield.TextInputLayout>
 
-                <!-- PIN Input -->
+                <!-- 2. Thanh URL Internet / 4G (Ngoài Đường) -->
                 <com.google.android.material.textfield.TextInputLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:hint="Mã PIN bảo mật (khớp với server)"
-                    app:boxStrokeColor="@color/color_success"
+                    android:layout_marginBottom="10dp"
+                    android:hint="2. Địa chỉ 4G / Internet (Cloudflare)"
+                    app:boxStrokeColor="@color/secondary"
                     app:hintTextColor="@color/text_secondary">
 
                     <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/etSecretPin"
+                        android:id="@+id/etInternetUrl"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:inputType="numberPassword"
-                        android:text="123456"
+                        android:inputType="textUri"
+                        android:text="https://european-choose-arcade-pepper.trycloudflare.com"
                         android:textColor="@color/text_primary" />
                 </com.google.android.material.textfield.TextInputLayout>
+
+                <!-- Mã PIN & Tùy chọn Delay thao tác -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <com.google.android.material.textfield.TextInputLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginEnd="6dp"
+                        android:hint="Mã PIN"
+                        app:boxStrokeColor="@color/color_success"
+                        app:hintTextColor="@color/text_secondary">
+
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/etSecretPin"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:inputType="numberPassword"
+                            android:text="123456"
+                            android:textColor="@color/text_primary" />
+                    </com.google.android.material.textfield.TextInputLayout>
+
+                    <com.google.android.material.textfield.TextInputLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginStart="6dp"
+                        android:hint="Delay chạm (ms)"
+                        app:boxStrokeColor="@color/secondary"
+                        app:hintTextColor="@color/text_secondary">
+
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/etTouchDelay"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:inputType="number"
+                            android:text="50"
+                            android:textColor="@color/text_primary" />
+                    </com.google.android.material.textfield.TextInputLayout>
+                </LinearLayout>
 
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>

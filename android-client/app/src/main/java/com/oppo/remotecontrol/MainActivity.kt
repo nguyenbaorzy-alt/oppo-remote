@@ -67,27 +67,74 @@ class MainActivity : AppCompatActivity() {
         refreshPermissionStates()
     }
 
+    private var selectedNetworkMode = "wifi" // "wifi" | "internet"
+
     private fun loadSavedSettings() {
-        val savedUrl = prefs.getString("server_url", "http://192.168.1.5:3000")
+        val savedWifiUrl = prefs.getString("wifi_url", "http://192.168.30.102:3000")
+        val savedInternetUrl = prefs.getString("internet_url", "https://european-choose-arcade-pepper.trycloudflare.com")
         val savedPin = prefs.getString("secret_pin", "123456")
-        binding.etServerUrl.setText(savedUrl)
+        val savedDelay = prefs.getInt("touch_delay", 50)
+        selectedNetworkMode = prefs.getString("selected_mode", "wifi") ?: "wifi"
+
+        binding.etWifiUrl.setText(savedWifiUrl)
+        binding.etInternetUrl.setText(savedInternetUrl)
         binding.etSecretPin.setText(savedPin)
+        binding.etTouchDelay.setText(savedDelay.toString())
+        updateNetworkModeUi()
     }
 
     private fun saveCurrentSettings() {
-        val url = binding.etServerUrl.text.toString().trim()
+        val wifiUrl = binding.etWifiUrl.text.toString().trim()
+        val internetUrl = binding.etInternetUrl.text.toString().trim()
         val pin = binding.etSecretPin.text.toString().trim()
+        val delay = binding.etTouchDelay.text.toString().toIntOrNull() ?: 50
+
         prefs.edit()
-            .putString("server_url", url)
+            .putString("wifi_url", wifiUrl)
+            .putString("internet_url", internetUrl)
             .putString("secret_pin", pin)
+            .putInt("touch_delay", delay)
+            .putString("selected_mode", selectedNetworkMode)
             .apply()
     }
 
+    private fun updateNetworkModeUi() {
+        if (selectedNetworkMode == "wifi") {
+            binding.btnModeWifi.setBackgroundColor(ContextCompat.getColor(this, R.color.color_success))
+            binding.btnModeInternet.setBackgroundColor(ContextCompat.getColor(this, R.color.surface))
+        } else {
+            binding.btnModeWifi.setBackgroundColor(ContextCompat.getColor(this, R.color.surface))
+            binding.btnModeInternet.setBackgroundColor(ContextCompat.getColor(this, R.color.secondary))
+        }
+    }
+
+    private fun getActiveServerUrl(): String {
+        return if (selectedNetworkMode == "wifi") {
+            binding.etWifiUrl.text.toString().trim()
+        } else {
+            binding.etInternetUrl.text.toString().trim()
+        }
+    }
+
     private fun setupListeners() {
+        // Nút chuyển đổi chế độ mạng 1 chạm
+        binding.btnModeWifi.setOnClickListener {
+            selectedNetworkMode = "wifi"
+            updateNetworkModeUi()
+            saveCurrentSettings()
+            Toast.makeText(this, "Đã chọn: 🏠 Wi-Fi Nhà", Toast.LENGTH_SHORT).show()
+        }
+
+        binding.btnModeInternet.setOnClickListener {
+            selectedNetworkMode = "internet"
+            updateNetworkModeUi()
+            saveCurrentSettings()
+            Toast.makeText(this, "Đã chọn: 🌐 4G Ngoài Đường", Toast.LENGTH_SHORT).show()
+        }
+
         // Nút 1: Bỏ qua tối ưu hóa pin
         binding.btnIgnoreBattery.setOnClickListener {
             ColorOSPowerHelper.requestIgnoreBatteryOptimizations(this)
-            // Thử mở thêm trang tự khởi chạy riêng của ColorOS nếu có
             ColorOSPowerHelper.openColorOSAutoLaunchSettings(this)
         }
 
@@ -123,7 +170,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startKeepAliveService(resultCode: Int, resultData: Intent) {
-        val url = binding.etServerUrl.text.toString().trim()
+        val url = getActiveServerUrl()
         val pin = binding.etSecretPin.text.toString().trim()
 
         val serviceIntent = Intent(this, CoreKeepAliveService::class.java).apply {
@@ -135,7 +182,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         ContextCompat.startForegroundService(this, serviceIntent)
-        Toast.makeText(this, "Dịch vụ OPPO Remote đã kích hoạt thành công!", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "Đang kết nối tới: $url", Toast.LENGTH_SHORT).show()
         mainHandler.postDelayed({ refreshPermissionStates() }, 500)
     }
 
