@@ -2,11 +2,10 @@
   "name": "oppo-remote-control",
   "version": "1.0.0",
   "description": "OPPO ColorOS Remote Control System - Cloud Server",
-  "main": "server-dashboard/server.js",
+  "main": "server.js",
   "scripts": {
-    "start": "node server-dashboard/server.js",
-    "build": "cd server-dashboard && npm install",
-    "postinstall": "cd server-dashboard && npm install"
+    "start": "node server.js",
+    "build": "npm install"
   },
   "dependencies": {
     "express": "^4.19.2",
