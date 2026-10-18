@@ -160,13 +160,33 @@ body.dark-theme {
 /* MAIN LAYOUT */
 .dashboard-container {
     display: grid;
-    grid-template-columns: minmax(360px, 480px) 1fr;
-    gap: 28px;
-    padding: 24px 32px;
-    max-width: 1600px;
+    grid-template-columns: minmax(400px, 1fr) 460px;
+    gap: 24px;
+    padding: 16px 24px;
+    max-width: 100%;
     margin: 0 auto;
     width: 100%;
     flex: 1;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.dashboard-container.is-landscape {
+    grid-template-columns: minmax(680px, 1.7fr) minmax(360px, 1fr);
+}
+
+/* THEATER MODE (ẨN BẢNG ĐIỀU KHIỂN ĐỂ MÀN HÌNH CỰC ĐẠI) */
+.dashboard-container.theater-mode {
+    grid-template-columns: 1fr !important;
+    padding: 10px 16px !important;
+}
+
+.dashboard-container.theater-mode .control-deck {
+    display: none !important;
+}
+
+.dashboard-container.theater-mode .phone-stage {
+    width: 100% !important;
+    align-items: center !important;
 }
 
 /* PHONE STAGE */
@@ -175,29 +195,170 @@ body.dark-theme {
     flex-direction: column;
     align-items: center;
     justify-content: flex-start;
-    gap: 12px;
+    gap: 10px;
+    width: 100%;
 }
 
+/* SCREEN SIZE & MODE TOOLBAR */
+.screen-size-toolbar {
+    width: 100%;
+    max-width: 1150px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 8px 14px;
+    background: rgba(15, 23, 42, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    backdrop-filter: blur(12px);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+    font-size: 0.82rem;
+    transition: max-width 0.25s ease;
+}
+
+.toolbar-left, .toolbar-right, .toolbar-slider-box {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.toolbar-title {
+    font-weight: 700;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.8rem;
+}
+
+.btn-size-chip {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: var(--text-secondary);
+    font-weight: 600;
+    font-size: 0.78rem;
+    padding: 4px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.18s ease;
+}
+
+.btn-size-chip:hover {
+    background: rgba(255, 255, 255, 0.14);
+    color: #fff;
+}
+
+.btn-size-chip.active {
+    background: rgba(6, 182, 212, 0.25);
+    border-color: var(--color-cyan);
+    color: var(--color-cyan);
+    font-weight: 700;
+    box-shadow: 0 0 10px rgba(6, 182, 212, 0.3);
+}
+
+.toolbar-slider-box {
+    flex: 1;
+    min-width: 180px;
+    max-width: 280px;
+    padding: 0 4px;
+}
+
+.toolbar-slider-box input[type="range"] {
+    flex: 1;
+    height: 6px;
+    background: #1e293b;
+    border-radius: 3px;
+    outline: none;
+    cursor: pointer;
+    accent-color: var(--color-cyan);
+}
+
+.size-val-badge {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.76rem;
+    color: var(--color-cyan);
+    min-width: 52px;
+    text-align: right;
+    font-weight: 700;
+}
+
+.btn-tool-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: var(--text-primary);
+    font-size: 0.78rem;
+    font-weight: 600;
+    padding: 5px 11px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-tool-action:hover {
+    background: rgba(255, 255, 255, 0.15);
+    color: #fff;
+    transform: translateY(-1px);
+}
+
+.btn-tool-action.active {
+    background: rgba(16, 185, 129, 0.25);
+    border-color: var(--color-emerald);
+    color: var(--color-emerald);
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.3);
+}
+
+.btn-fullscreen-highlight {
+    background: linear-gradient(135deg, #0284c7, #06b6d4) !important;
+    color: #fff !important;
+    border: none !important;
+    font-weight: 700 !important;
+    box-shadow: 0 2px 10px rgba(6, 182, 212, 0.35);
+}
+
+.btn-fullscreen-highlight:hover {
+    box-shadow: 0 4px 16px rgba(6, 182, 212, 0.55);
+    transform: translateY(-1px) scale(1.02);
+}
+
+/* PHONE CHASSIS */
 .phone-chassis {
     width: 100%;
     max-width: 410px;
-    aspect-ratio: 9 / 19.5;
+    height: auto;
     background: var(--phone-bezel);
-    border: 10px solid var(--phone-border);
-    border-radius: 46px;
+    border: 8px solid var(--phone-border);
+    border-radius: 38px;
     box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.08);
     position: relative;
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    transition: max-width 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    transition: max-width 0.25s cubic-bezier(0.16, 1, 0.3, 1), border 0.2s, border-radius 0.2s;
 }
 
-/* Phone Chassis in Landscape Mode */
+/* Phone Chassis in Landscape Mode - DEFAULT LARGE (1150px) */
 .phone-chassis.landscape {
-    max-width: 780px;
-    border-radius: 36px;
-    border-width: 8px;
+    max-width: 1150px;
+    border-radius: 26px;
+    border-width: 6px;
+}
+
+/* FRAMELESS MODE (TRÀN VIỀN - TỐI ĐA DIỆN TÍCH CHO GAME) */
+.phone-chassis.frameless {
+    border: 2px solid rgba(6, 182, 212, 0.5) !important;
+    border-radius: 12px !important;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.9), 0 0 25px rgba(6, 182, 212, 0.25) !important;
+}
+
+.phone-chassis.frameless .phone-speaker,
+.phone-chassis.frameless .phone-punch-hole,
+.phone-chassis.frameless .bottom-hardware-bar {
+    display: none !important;
 }
 
 .phone-chassis.landscape .phone-speaker {
@@ -212,11 +373,6 @@ body.dark-theme {
     top: 50%;
     left: 18px;
     transform: translateY(-50%);
-}
-
-.dashboard-container.is-landscape,
-.dashboard-container:has(.phone-chassis.landscape) {
-    grid-template-columns: minmax(520px, 820px) 1fr;
 }
 
 /* Phone Bezel Features */
@@ -250,11 +406,12 @@ body.dark-theme {
 .screen-viewport {
     position: relative;
     width: 100%;
-    flex: 1;
+    aspect-ratio: 9 / 19.5;
     background: #000;
     overflow: hidden;
     user-select: none;
     cursor: crosshair;
+    touch-action: none;
     transition: box-shadow 0.2s ease;
 }
 
@@ -545,7 +702,78 @@ body.dark-theme {
 
 .phone-chassis.landscape + .screen-info-footer,
 .dashboard-container.is-landscape .screen-info-footer {
-    max-width: 780px;
+    max-width: 1150px;
+}
+
+/* FULLSCREEN VIEWPORT MODE (CHƠI GAME TOÀN MÀN HÌNH KHÔNG VIỀN) */
+.screen-viewport:fullscreen {
+    width: 100vw !important;
+    height: 100vh !important;
+    max-width: 100vw !important;
+    max-height: 100vh !important;
+    aspect-ratio: auto !important;
+    background: #000 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    cursor: crosshair;
+}
+
+.screen-viewport:fullscreen #screenCanvas {
+    width: 100% !important;
+    height: 100% !important;
+    max-width: 100vw !important;
+    max-height: 100vh !important;
+    object-fit: contain !important;
+}
+
+.screen-viewport:-webkit-full-screen {
+    width: 100vw !important;
+    height: 100vh !important;
+    aspect-ratio: auto !important;
+    background: #000 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+.screen-viewport:-webkit-full-screen #screenCanvas {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: contain !important;
+}
+
+.btn-exit-fullscreen {
+    position: fixed;
+    top: 24px;
+    right: 24px;
+    z-index: 99999;
+    background: rgba(15, 23, 42, 0.88);
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    padding: 9px 18px;
+    font-size: 0.88rem;
+    font-weight: 700;
+    cursor: pointer;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s ease;
+}
+
+.btn-exit-fullscreen:hover {
+    background: rgba(239, 68, 68, 0.9);
+    border-color: #ef4444;
+    transform: scale(1.04);
+}
+
+.btn-exit-fullscreen.hidden {
+    display: none !important;
 }
 
 .btn-rotate-pill {
@@ -897,15 +1125,118 @@ input[type="range"] {
 .text-purple { color: var(--color-purple); }
 .text-blue { color: var(--color-blue); }
 
-/* RESPONSIVE */
+/* QUICK GESTURES TOOLBAR */
+.quick-gestures-bar {
+    width: 100%;
+    max-width: 1150px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: rgba(15, 23, 42, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    backdrop-filter: blur(12px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    flex-wrap: wrap;
+    transition: max-width 0.25s ease;
+}
+
+.gesture-label {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-right: 4px;
+}
+
+.btn-gesture {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    color: var(--text-primary);
+    font-size: 0.8rem;
+    font-weight: 600;
+    padding: 6px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    touch-action: manipulation;
+    transition: all 0.15s ease;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.btn-gesture:active {
+    background: rgba(6, 182, 212, 0.3);
+    border-color: var(--color-cyan);
+    color: var(--color-cyan);
+    transform: scale(0.95);
+}
+
+@media (hover: hover) {
+    .btn-gesture:hover {
+        background: rgba(255, 255, 255, 0.16);
+        color: #fff;
+        border-color: rgba(255, 255, 255, 0.25);
+    }
+}
+
+/* RESPONSIVE FOR TABLETS & CONTROLLING PHONES */
 @media (max-width: 1024px) {
-    .dashboard-container {
-        grid-template-columns: 1fr;
+    .dashboard-container,
+    .dashboard-container.is-landscape {
+        grid-template-columns: 1fr !important;
         justify-items: center;
+        padding: 10px !important;
+        gap: 16px;
     }
 
     .phone-stage, .control-deck {
-        width: 100%;
-        max-width: 520px;
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+
+    .phone-chassis,
+    .phone-chassis.landscape {
+        max-width: 100% !important;
+    }
+
+    .screen-size-toolbar,
+    .quick-gestures-bar,
+    .screen-info-footer {
+        max-width: 100% !important;
+    }
+}
+
+@media (max-width: 640px) {
+    .top-nav {
+        padding: 10px 14px;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .toolbar-slider-box {
+        display: none; /* Hide zoom slider on mobile phone to save space */
+    }
+
+    .screen-size-toolbar {
+        padding: 6px 10px;
+        justify-content: center;
+    }
+
+    .phone-chassis,
+    .phone-chassis.landscape {
+        border-width: 4px !important;
+        border-radius: 18px !important;
+    }
+
+    .btn-gesture {
+        padding: 6px 10px;
+        font-size: 0.75rem;
     }
 }

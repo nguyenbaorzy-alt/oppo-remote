@@ -733,6 +733,38 @@ class CoreKeepAliveService : Service() {
                 }
             }
 
+            // Nhận lệnh TOUCH_DOWN từ Web (Bắt đầu nhấn giữ di chuyển)
+            socket?.on("TOUCH_DOWN") { args ->
+                if (args.isNotEmpty()) {
+                    val obj = args[0] as? JSONObject
+                    val x = obj?.optDouble("x", 0.0)?.toFloat() ?: 0f
+                    val y = obj?.optDouble("y", 0.0)?.toFloat() ?: 0f
+                    Log.d(TAG, "Dispatching TOUCH_DOWN ($x, $y)")
+                    RemoteAccessibilityService.instance?.handleTouchDown(x, y)
+                }
+            }
+
+            // Nhận lệnh TOUCH_MOVE từ Web (Di chuyển liên tục thời gian thực)
+            socket?.on("TOUCH_MOVE") { args ->
+                if (args.isNotEmpty()) {
+                    val obj = args[0] as? JSONObject
+                    val x = obj?.optDouble("x", 0.0)?.toFloat() ?: 0f
+                    val y = obj?.optDouble("y", 0.0)?.toFloat() ?: 0f
+                    RemoteAccessibilityService.instance?.handleTouchMove(x, y)
+                }
+            }
+
+            // Nhận lệnh TOUCH_UP từ Web (Thả tay kết thúc cử chỉ)
+            socket?.on("TOUCH_UP") { args ->
+                if (args.isNotEmpty()) {
+                    val obj = args[0] as? JSONObject
+                    val x = obj?.optDouble("x", 0.0)?.toFloat() ?: 0f
+                    val y = obj?.optDouble("y", 0.0)?.toFloat() ?: 0f
+                    Log.d(TAG, "Dispatching TOUCH_UP ($x, $y)")
+                    RemoteAccessibilityService.instance?.handleTouchUp(x, y)
+                }
+            }
+
             // Nhận lệnh TOUCH_SWIPE từ Web
             socket?.on("TOUCH_SWIPE") { args ->
                 if (args.isNotEmpty()) {

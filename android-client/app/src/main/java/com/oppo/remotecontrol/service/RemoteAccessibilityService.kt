@@ -70,6 +70,86 @@ class RemoteAccessibilityService : AccessibilityService() {
     // 1. THAO TÁC CẢM ỨNG (TOUCH TAP & SWIPE)
     // =========================================================================
 
+    // Continuous Real-time Gesture Support
+    private var activeStroke: GestureDescription.StrokeDescription? = null
+    private var lastContinuousTouchX = 0f
+    private var lastContinuousTouchY = 0f
+    private var isContinuousTouchActive = false
+
+    fun handleTouchDown(x: Float, y: Float) {
+        lastContinuousTouchX = x
+        lastContinuousTouchY = y
+        isContinuousTouchActive = true
+
+        val path = Path().apply {
+            moveTo(x, y)
+            lineTo(x, y)
+        }
+        val stroke = GestureDescription.StrokeDescription(path, 0, 50000L, true)
+        val gesture = GestureDescription.Builder().addStroke(stroke).build()
+
+        dispatchGesture(gesture, object : GestureResultCallback() {
+            override fun onCompleted(gestureDescription: GestureDescription?) {}
+            override fun onCancelled(gestureDescription: GestureDescription?) {
+                activeStroke = null
+                isContinuousTouchActive = false
+            }
+        }, null)
+        activeStroke = stroke
+    }
+
+    fun handleTouchMove(x: Float, y: Float) {
+        if (!isContinuousTouchActive || activeStroke == null) {
+            handleTouchDown(x, y)
+            return
+        }
+
+        val path = Path().apply {
+            moveTo(lastContinuousTouchX, lastContinuousTouchY)
+            lineTo(x, y)
+        }
+        lastContinuousTouchX = x
+        lastContinuousTouchY = y
+
+        try {
+            val nextStroke = activeStroke?.continueStroke(path, 0, 80L, true)
+            if (nextStroke != null) {
+                val gesture = GestureDescription.Builder().addStroke(nextStroke).build()
+                dispatchGesture(gesture, object : GestureResultCallback() {
+                    override fun onCancelled(gestureDescription: GestureDescription?) {
+                        activeStroke = null
+                        isContinuousTouchActive = false
+                    }
+                }, null)
+                activeStroke = nextStroke
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "continueStroke failed, restarting touch", e)
+            activeStroke = null
+            handleTouchDown(x, y)
+        }
+    }
+
+    fun handleTouchUp(x: Float, y: Float) {
+        if (activeStroke != null) {
+            val path = Path().apply {
+                moveTo(lastContinuousTouchX, lastContinuousTouchY)
+                lineTo(x, y)
+            }
+            try {
+                val finalStroke = activeStroke?.continueStroke(path, 0, 40L, false)
+                if (finalStroke != null) {
+                    val gesture = GestureDescription.Builder().addStroke(finalStroke).build()
+                    dispatchGesture(gesture, null, null)
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Final stroke failed", e)
+            }
+        }
+        activeStroke = null
+        isContinuousTouchActive = false
+    }
+
     /**
      * Thực hiện chạm đơn tại tọa độ (x, y) trong thời gian 50ms
      */

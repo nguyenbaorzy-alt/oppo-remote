@@ -32,6 +32,12 @@
                 </select>
             </div>
 
+            <!-- Relay Server Chip / Change URL -->
+            <div class="status-chip server-selector-chip" id="btnChangeServer" style="cursor: pointer;" title="Bấm để xem/đổi địa chỉ máy chủ">
+                <i class="fa-solid fa-cloud text-emerald"></i>
+                <span id="currentServerLabel" style="max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Server</span>
+            </div>
+
             <!-- Connection Status -->
             <div class="status-chip" id="deviceStatusChip">
                 <span class="pulse-dot offline"></span>
@@ -62,6 +68,35 @@
     <main class="dashboard-container">
         <!-- LEFT: Phone Screen Simulator & Canvas -->
         <section class="phone-stage">
+            <!-- Quick Screen Size & Mode Toolbar -->
+            <div class="screen-size-toolbar" id="screenSizeToolbar">
+                <div class="toolbar-left">
+                    <span class="toolbar-title"><i class="fa-solid fa-up-right-and-down-left-from-center"></i> Cỡ:</span>
+                    <button class="btn-size-chip" data-size="normal" id="btnSizeNormal" title="Kích thước vừa (850px)">Vừa</button>
+                    <button class="btn-size-chip active" data-size="large" id="btnSizeLarge" title="Kích thước lớn (1150px)">Lớn</button>
+                    <button class="btn-size-chip" data-size="max" id="btnSizeMax" title="Kích thước cực đại (Tràn khung)">Cực Đại</button>
+                </div>
+                
+                <div class="toolbar-slider-box">
+                    <i class="fa-solid fa-magnifying-glass-minus text-muted"></i>
+                    <input type="range" id="sizeRangeSlider" min="600" max="1800" step="50" value="1150" title="Kéo thanh trượt để phóng to / thu nhỏ màn hình">
+                    <i class="fa-solid fa-magnifying-glass-plus text-cyan"></i>
+                    <span id="sizeValBadge" class="size-val-badge">1150px</span>
+                </div>
+
+                <div class="toolbar-right">
+                    <button class="btn-tool-action" id="btnToggleFrameless" title="Ẩn viền điện thoại để màn hình to và rộng hơn">
+                        <i class="fa-solid fa-border-none"></i> <span class="tool-btn-text">Tràn Viền</span>
+                    </button>
+                    <button class="btn-tool-action" id="btnToggleTheater" title="Ẩn cột điều khiển bên phải để màn hình chơi game siêu to">
+                        <i class="fa-solid fa-film"></i> <span class="tool-btn-text">Rạp Phim</span>
+                    </button>
+                    <button class="btn-tool-action btn-fullscreen-highlight" id="btnFullscreen" title="Phóng to toàn màn hình máy tính (F11)">
+                        <i class="fa-solid fa-expand"></i> <span class="tool-btn-text">Toàn Màn Hình</span>
+                    </button>
+                </div>
+            </div>
+
             <div class="phone-chassis" id="phoneChassis">
                 <!-- Phone Bezel Details -->
                 <div class="phone-speaker"></div>
@@ -71,6 +106,11 @@
                 <div class="screen-viewport" id="screenViewport" tabindex="0" title="Nhấp vào đây để gõ phím hoặc cuộn chuột">
                     <canvas id="screenCanvas"></canvas>
                     
+                    <!-- Floating Exit Fullscreen Button -->
+                    <button id="btnExitFullscreen" class="btn-exit-fullscreen hidden" title="Thoát toàn màn hình (ESC)">
+                        <i class="fa-solid fa-compress"></i> Thoát Toàn Màn Hình (ESC)
+                    </button>
+
                     <!-- Touch Ripple / Swipe Visual Effect -->
                     <div id="touchRipple" class="touch-ripple"></div>
                     <svg id="swipePathSvg" class="swipe-svg"></svg>
@@ -86,6 +126,17 @@
                             <a href="/app-debug.apk" download="OPPO-Remote-Control.apk" class="btn-download-apk" style="display: inline-flex; align-items: center; gap: 8px; margin-bottom: 16px; padding: 10px 18px; background: linear-gradient(135deg, #10b981, #059669); color: #fff; text-decoration: none; border-radius: 8px; font-weight: 700; font-size: 0.9rem; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4);">
                                 <i class="fa-solid fa-download"></i> Tải Về App APK Trực Tiếp
                             </a>
+
+                            <div class="server-config-box" style="margin-bottom: 14px; text-align: left; width: 100%;">
+                                <label for="serverUrlInput" style="display: block; font-size: 0.8rem; font-weight: 700; color: #94a3b8; margin-bottom: 6px;">
+                                    <i class="fa-solid fa-server text-cyan"></i> Địa chỉ Máy Chủ (Relay Server):
+                                </label>
+                                <input type="text" id="serverUrlInput" value="https://chest-summaries-drainage-isa.trycloudflare.com" placeholder="https://...trycloudflare.com hoặc http://localhost:3000" style="width: 100%; padding: 8px 12px; background: rgba(9, 13, 22, 0.9); border: 1px solid rgba(51, 65, 85, 0.8); border-radius: 8px; color: #38bdf8; font-family: monospace; font-size: 0.85rem; outline: none; box-sizing: border-box;">
+                                <small style="color: #64748b; font-size: 0.72rem; display: block; margin-top: 4px;">
+                                    * Tự động kết nối Cloudflare Tunnel khi chạy trên Netlify
+                                </small>
+                            </div>
+
                             <div class="pin-verify-box">
                                 <label for="authPinInput">Mã PIN bảo mật:</label>
                                 <div class="input-with-btn">
@@ -123,6 +174,15 @@
                         <i class="fa-solid fa-chevron-left"></i>
                     </button>
                 </div>
+            </div>
+
+            <!-- Quick Swipe & Gesture Toolbar (Rất tiện khi dùng điện thoại khác điều khiển) -->
+            <div class="quick-gestures-bar" id="quickGesturesBar">
+                <span class="gesture-label"><i class="fa-solid fa-hand-pointer text-cyan"></i> Vuốt Nhanh:</span>
+                <button class="btn-gesture" id="btnSwipeLeft" title="Vuốt sang trái (Chuyển trang kế)"><i class="fa-solid fa-arrow-left"></i> Trái</button>
+                <button class="btn-gesture" id="btnSwipeRight" title="Vuốt sang phải (Trở lại trang trước)"><i class="fa-solid fa-arrow-right"></i> Phải</button>
+                <button class="btn-gesture" id="btnSwipeUp" title="Vuốt lên trên (Cuộn trang xuống)"><i class="fa-solid fa-arrow-up"></i> Lên</button>
+                <button class="btn-gesture" id="btnSwipeDown" title="Vuốt xuống dưới (Mở thanh thông báo)"><i class="fa-solid fa-arrow-down"></i> Xuống</button>
             </div>
 
             <!-- Coordinate / Resolution Indicator -->
@@ -355,8 +415,13 @@
         </aside>
     </main>
 
-    <!-- Socket.IO Client Script -->
+    <!-- Socket.IO Client Script with CDN fallback -->
     <script src="/socket.io/socket.io.js"></script>
+    <script>
+        if (typeof io === 'undefined') {
+            document.write('<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"><\/script>');
+        }
+    </script>
     <script src="app.js"></script>
 </body>
 </html>

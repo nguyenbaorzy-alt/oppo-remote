@@ -111,12 +111,14 @@ io.on('connection', (socket) => {
                 state: devState
             });
 
-            if (!activeDeviceId) {
+            // Tự động chọn làm active device nếu chưa có hoặc là thiết bị duy nhất
+            if (!activeDeviceId || !connectedDevices.has(activeDeviceId) || connectedDevices.size === 1) {
                 activeDeviceId = socket.id;
+                console.log(`>>> [Active Device Assigned] Set activeDeviceId to: ${activeDeviceId} (${devState.model})`);
             }
 
             socket.emit('auth_result', { success: true, message: 'Device Authenticated Successfully' });
-            console.log(`>>> [Android Device Connected] Model: ${devState.model} (${devState.width}x${devState.height}) - Total: ${connectedDevices.size}`);
+            console.log(`>>> [Android Device Connected] Model: ${devState.model} (${devState.width}x${devState.height}) - Total Devices: ${connectedDevices.size}`);
 
             broadcastDeviceList();
         } else {
@@ -160,8 +162,12 @@ io.on('connection', (socket) => {
     socket.on('stream_frame', (frameData) => {
         if (!isAuthenticated || clientType !== 'device') return;
         
-        // Chỉ relay hình ảnh từ thiết bị đang được chọn (Active Device)
-        if (socket.id === activeDeviceId) {
+        if (!activeDeviceId || !connectedDevices.has(activeDeviceId)) {
+            activeDeviceId = socket.id;
+        }
+
+        // Relay hình ảnh từ thiết bị active hoặc khi có 1 thiết bị kết nối
+        if (socket.id === activeDeviceId || connectedDevices.size === 1) {
             const dev = connectedDevices.get(socket.id);
             if (dev) dev.state.lastSeen = Date.now();
 
@@ -219,6 +225,9 @@ io.on('connection', (socket) => {
     }
 
     socket.on('TOUCH_TAP', (data) => forwardToActiveDevice('TOUCH_TAP', data));
+    socket.on('TOUCH_DOWN', (data) => forwardToActiveDevice('TOUCH_DOWN', data));
+    socket.on('TOUCH_MOVE', (data) => forwardToActiveDevice('TOUCH_MOVE', data));
+    socket.on('TOUCH_UP', (data) => forwardToActiveDevice('TOUCH_UP', data));
     socket.on('TOUCH_SWIPE', (data) => forwardToActiveDevice('TOUCH_SWIPE', data));
     socket.on('TOUCH_SCROLL', (data) => forwardToActiveDevice('TOUCH_SCROLL', data));
     socket.on('KEY_EVENT', (data) => forwardToActiveDevice('KEY_EVENT', data));
@@ -278,11 +287,12 @@ io.on('connection', (socket) => {
     });
 });
 
-server.listen(PORT, '0.0.0.0', () => {
+server.listen({ port: PORT, host: '::', ipv6Only: false }, () => {
     console.log('========================================================');
     console.log(`🚀 Remote Control Multi-Device Relay Server running on:`);
-    console.log(`   Local URL:    http://localhost:${PORT}`);
-    console.log(`   Network URL:  http://0.0.0.0:${PORT}`);
+    console.log(`   Local IPv4:   http://127.0.0.1:${PORT}`);
+    console.log(`   Local IPv6:   http://[::1]:${PORT}`);
+    console.log(`   Network IPv4: http://192.168.30.102:${PORT}`);
     console.log(`   Security PIN: ${SECRET_PIN}`);
     console.log('========================================================');
 });
