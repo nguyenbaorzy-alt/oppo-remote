@@ -228,6 +228,12 @@ body.dark-theme {
     overflow: hidden;
     user-select: none;
     cursor: crosshair;
+    transition: box-shadow 0.2s ease;
+}
+
+.screen-viewport:focus {
+    outline: none;
+    box-shadow: inset 0 0 0 2px rgba(6, 182, 212, 0.7), 0 0 25px rgba(6, 182, 212, 0.3);
 }
 
 #screenCanvas {
@@ -265,6 +271,59 @@ body.dark-theme {
     height: 100%;
     pointer-events: none;
     z-index: 51;
+}
+
+/* Input HUD Toast */
+.input-hud-toast {
+    position: absolute;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(10px) scale(0.92);
+    background: rgba(15, 23, 42, 0.9);
+    color: var(--color-cyan);
+    border: 1px solid rgba(6, 182, 212, 0.4);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6), 0 0 16px rgba(6, 182, 212, 0.25);
+    backdrop-filter: blur(12px);
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    font-family: 'JetBrains Mono', monospace;
+    pointer-events: none;
+    z-index: 58;
+    opacity: 0;
+    transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+    white-space: nowrap;
+}
+
+.input-hud-toast.visible {
+    transform: translateX(-50%) translateY(0) scale(1);
+    opacity: 1;
+}
+
+/* Scroll Feedback Icon */
+.scroll-feedback-icon {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: rgba(6, 182, 212, 0.25);
+    border: 1px solid var(--color-cyan);
+    box-shadow: 0 0 14px rgba(6, 182, 212, 0.5);
+    color: #fff;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    z-index: 52;
+    animation: scrollFade 0.4s ease-out forwards;
+}
+
+@keyframes scrollFade {
+    0% { opacity: 0.9; transform: translate(-50%, -50%) scale(0.85); }
+    100% { opacity: 0; transform: translate(-50%, -50%) scale(1.4); }
 }
 
 /* Screen Overlay / Connecting */

@@ -2,11 +2,14 @@ package com.oppo.remotecontrol.service
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.graphics.Color
 import android.graphics.Path
 import android.graphics.PixelFormat
 import android.os.Build
+import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
@@ -122,6 +125,145 @@ class RemoteAccessibilityService : AccessibilityService() {
     }
 
     /**
+     * Thực hiện cuộn mượt (Scroll Wheel) theo hướng UP hoặc DOWN
+     */
+    fun performScroll(direction: String, x: Float, y: Float) {
+        val metrics = resources.displayMetrics
+        val height = metrics.heightPixels.toFloat()
+        val scrollDistance = (height * 0.22f).coerceIn(200f, 500f)
+
+        val startY: Float
+        val endY: Float
+
+        if (direction.uppercase() == "DOWN") {
+            // Cuộn xuống (ngón tay vuốt từ dưới lên trên)
+            startY = (y + scrollDistance / 2).coerceAtMost(height - 60f)
+            endY = (y - scrollDistance / 2).coerceAtLeast(60f)
+        } else {
+            // Cuộn lên (ngón tay vuốt từ trên xuống dưới)
+            startY = (y - scrollDistance / 2).coerceAtLeast(60f)
+            endY = (y + scrollDistance / 2).coerceAtMost(height - 60f)
+        }
+
+        Log.d(TAG, "performScroll $direction: ($x, $startY) -> ($x, $endY)")
+        performSwipe(x, startY, x, endY, 160L)
+    }
+
+    /**
+     * Nhập văn bản hoặc dán clipboard vào ô đang focus trên điện thoại
+     */
+    fun inputText(text: String, mode: String = "append"): Boolean {
+        mainHandler.post {
+            try {
+                val root = rootInActiveWindow
+                val focusedNode = root?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
+                    ?: root?.findFocus(AccessibilityNodeInfo.FOCUS_ACCESSIBILITY)
+
+                if (focusedNode != null) {
+                    when (mode) {
+                        "set" -> {
+                            val args = Bundle().apply {
+                                putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text)
+                            }
+                            val ok = focusedNode.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+                            Log.d(TAG, "inputText (set): $text -> result: $ok")
+                        }
+                        "paste" -> {
+                            setClipboardText(text)
+                            val ok = focusedNode.performAction(AccessibilityNodeInfo.ACTION_PASTE)
+                            Log.d(TAG, "inputText (paste): $text -> result: $ok")
+                        }
+                        else -> { // "append"
+                            val current = focusedNode.text?.toString() ?: ""
+                            val combined = current + text
+                            val args = Bundle().apply {
+                                putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, combined)
+                            }
+                            var ok = focusedNode.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+                            if (!ok) {
+                                // Nếu không hỗ trợ set_text, thử qua clipboard paste
+                                setClipboardText(text)
+                                ok = focusedNode.performAction(AccessibilityNodeInfo.ACTION_PASTE)
+                            }
+                            Log.d(TAG, "inputText (append): $text -> result: $ok")
+                        }
+                    }
+                } else {
+                    // Không tìm thấy ô focus, lưu vào clipboard để người dùng dán thủ công
+                    setClipboardText(text)
+                    Log.i(TAG, "No focused input found. Text saved to clipboard: $text")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error in inputText", e)
+            }
+        }
+        return true
+    }
+
+    /**
+     * Xóa 1 ký tự cuối (Backspace) tại ô input đang focus
+     */
+    fun deleteLastChar(): Boolean {
+        mainHandler.post {
+            try {
+                val root = rootInActiveWindow ?: return@post
+                val focused = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT) ?: return@post
+                val current = focused.text?.toString() ?: ""
+                if (current.isNotEmpty()) {
+                    val remaining = current.substring(0, current.length - 1)
+                    val args = Bundle().apply {
+                        putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, remaining)
+                    }
+                    focused.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+                    Log.d(TAG, "deleteLastChar executed, remaining length: ${remaining.length}")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error in deleteLastChar", e)
+            }
+        }
+        return true
+    }
+
+    /**
+     * Nhấn Enter hoặc xuống dòng tại ô input đang focus
+     */
+    fun handleEnterKey(): Boolean {
+        mainHandler.post {
+            try {
+                val root = rootInActiveWindow ?: return@post
+                val focused = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT) ?: return@post
+                val current = focused.text?.toString() ?: ""
+                val args = Bundle().apply {
+                    putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, "$current\n")
+                }
+                focused.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+                Log.d(TAG, "handleEnterKey executed")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error in handleEnterKey", e)
+            }
+        }
+        return true
+    }
+
+    /**
+     * Đồng bộ văn bản vào khay nhớ tạm (Clipboard) của điện thoại
+     */
+    fun setClipboardText(text: String) {
+        mainHandler.post {
+            try {
+                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                if (clipboard != null) {
+                    val clip = ClipData.newPlainText("OPPORemote", text)
+                    clipboard.setPrimaryClip(clip)
+                    Log.i(TAG, "Successfully copied to phone clipboard: $text")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to copy to clipboard", e)
+            }
+        }
+    }
+
+    /**
      * Thực hiện phím hệ thống toàn cục
      */
     fun performGlobal(action: String) {
@@ -132,6 +274,8 @@ class RemoteAccessibilityService : AccessibilityService() {
             "LOCK" -> performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN)
             "NOTIFICATIONS" -> performGlobalAction(GLOBAL_ACTION_NOTIFICATIONS)
             "QUICK_SETTINGS" -> performGlobalAction(GLOBAL_ACTION_QUICK_SETTINGS)
+            "BACKSPACE" -> deleteLastChar()
+            "ENTER" -> handleEnterKey()
             else -> Log.w(TAG, "Unknown global action: $action")
         }
     }

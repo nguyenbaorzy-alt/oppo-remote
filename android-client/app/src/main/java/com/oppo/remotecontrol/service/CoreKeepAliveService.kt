@@ -124,12 +124,38 @@ class CoreKeepAliveService : Service() {
         }
     }
 
+    // Tự động hồi sinh luồng VirtualDisplay khi mở màn hình vật lý
+    private val screenStateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            when (intent?.action) {
+                Intent.ACTION_SCREEN_ON, Intent.ACTION_USER_PRESENT -> {
+                    Log.i(TAG, ">>> Physical screen ON / User Present detected! Triggering stream recovery...")
+                    serviceScope.launch {
+                        delay(250) // Chờ hệ điều hành Android đánh thức Display Compositor
+                        refreshStream()
+                    }
+                }
+                Intent.ACTION_SCREEN_OFF -> {
+                    Log.i(TAG, ">>> Physical screen OFF detected.")
+                }
+            }
+        }
+    }
+
     override fun onCreate() {
         super.onCreate()
         instance = this
         mediaProjectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as? MediaProjectionManager
         acquireHardwareLocks()
         registerReceiver(batteryReceiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+
+        val screenFilter = IntentFilter().apply {
+            addAction(Intent.ACTION_SCREEN_ON)
+            addAction(Intent.ACTION_SCREEN_OFF)
+            addAction(Intent.ACTION_USER_PRESENT)
+        }
+        registerReceiver(screenStateReceiver, screenFilter)
+
         Log.i(TAG, "CoreKeepAliveService created")
     }
 
@@ -176,6 +202,9 @@ class CoreKeepAliveService : Service() {
         releaseHardwareLocks()
         try {
             unregisterReceiver(batteryReceiver)
+        } catch (_: Exception) {}
+        try {
+            unregisterReceiver(screenStateReceiver)
         } catch (_: Exception) {}
         instance = null
         isConnectedToSocket = false
@@ -337,6 +366,29 @@ class CoreKeepAliveService : Service() {
             Log.i(TAG, "MediaProjection resources cleaned")
         } catch (e: Exception) {
             Log.e(TAG, "Error cleaning MediaProjection", e)
+        }
+    }
+
+    /**
+     * Khắc phục hiện tượng đen màn hình khi bật lại màn hình vật lý:
+     * Tái liên kết Surface của ImageReader và kích hoạt VirtualDisplay resize
+     */
+    fun refreshStream() {
+        try {
+            Log.i(TAG, ">>> [refreshStream] Re-linking ImageReader and triggering VirtualDisplay resize...")
+            val oldReader = imageReader
+            val newReader = ImageReader.newInstance(screenWidth, screenHeight, PixelFormat.RGBA_8888, 2)
+            virtualDisplay?.surface = newReader.surface
+            imageReader = newReader
+            oldReader?.close()
+
+            virtualDisplay?.resize(screenWidth, screenHeight, screenDensity)
+
+            // Khởi động lại vòng lặp capture nếu đang bị gián đoạn
+            startFrameCaptureLoop()
+            Log.i(TAG, ">>> [refreshStream] Stream refreshed and buffer active.")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error during stream refresh", e)
         }
     }
 
@@ -507,6 +559,49 @@ class CoreKeepAliveService : Service() {
                     Log.d(TAG, "Dispatching TOUCH_SWIPE ($startX, $startY) -> ($endX, $endY)")
                     RemoteAccessibilityService.instance?.performSwipe(startX, startY, endX, endY, duration)
                 }
+            }
+
+            // Nhận lệnh cuộn chuột mượt (TOUCH_SCROLL)
+            socket?.on("TOUCH_SCROLL") { args ->
+                if (args.isNotEmpty()) {
+                    val obj = args[0] as? JSONObject
+                    val direction = obj?.optString("direction", "DOWN") ?: "DOWN"
+                    val x = obj?.optDouble("x", screenWidth / 2.0)?.toFloat() ?: (screenWidth / 2f)
+                    val y = obj?.optDouble("y", screenHeight / 2.0)?.toFloat() ?: (screenHeight / 2f)
+                    Log.d(TAG, "Dispatching TOUCH_SCROLL $direction at ($x, $y)")
+                    RemoteAccessibilityService.instance?.performScroll(direction, x, y)
+                }
+            }
+
+            // Nhận lệnh nhập chữ bàn phím PC (INPUT_TEXT)
+            socket?.on("INPUT_TEXT") { args ->
+                if (args.isNotEmpty()) {
+                    val obj = args[0] as? JSONObject
+                    val text = obj?.optString("text", "") ?: ""
+                    val mode = obj?.optString("mode", "append") ?: "append"
+                    if (text.isNotEmpty()) {
+                        Log.d(TAG, "Dispatching INPUT_TEXT ($mode): $text")
+                        RemoteAccessibilityService.instance?.inputText(text, mode)
+                    }
+                }
+            }
+
+            // Đồng bộ dữ liệu Clipboard từ PC sang điện thoại (SET_CLIPBOARD)
+            socket?.on("SET_CLIPBOARD") { args ->
+                if (args.isNotEmpty()) {
+                    val obj = args[0] as? JSONObject
+                    val text = obj?.optString("text", "") ?: ""
+                    if (text.isNotEmpty()) {
+                        Log.d(TAG, "Dispatching SET_CLIPBOARD: $text")
+                        RemoteAccessibilityService.instance?.setClipboardText(text)
+                    }
+                }
+            }
+
+            // Nhận lệnh đồng bộ lại luồng màn hình (RESET_STREAM) khi vừa bật lại màn hình
+            socket?.on("RESET_STREAM") {
+                Log.i(TAG, ">>> Received RESET_STREAM command from dashboard")
+                refreshStream()
             }
 
             // Nhận phím điều hướng hệ thống

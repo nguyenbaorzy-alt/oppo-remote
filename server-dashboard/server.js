@@ -204,7 +204,11 @@ io.on('connection', (socket) => {
 
     socket.on('TOUCH_TAP', (data) => forwardToActiveDevice('TOUCH_TAP', data));
     socket.on('TOUCH_SWIPE', (data) => forwardToActiveDevice('TOUCH_SWIPE', data));
+    socket.on('TOUCH_SCROLL', (data) => forwardToActiveDevice('TOUCH_SCROLL', data));
     socket.on('KEY_EVENT', (data) => forwardToActiveDevice('KEY_EVENT', data));
+    socket.on('INPUT_TEXT', (data) => forwardToActiveDevice('INPUT_TEXT', data));
+    socket.on('SET_CLIPBOARD', (data) => forwardToActiveDevice('SET_CLIPBOARD', data));
+    socket.on('RESET_STREAM', (data) => forwardToActiveDevice('RESET_STREAM', data));
     
     socket.on('POWER_MODE', (data) => {
         const activeDev = getActiveDevice();

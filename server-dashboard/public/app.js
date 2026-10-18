@@ -73,6 +73,13 @@ const btnPhoneBack = document.getElementById('btnPhoneBack');
 const btnPhoneHome = document.getElementById('btnPhoneHome');
 const btnPhoneRecents = document.getElementById('btnPhoneRecents');
 
+// Keyboard, Clipboard & Stream Recovery Controls
+const pcTextInput = document.getElementById('pcTextInput');
+const btnSendText = document.getElementById('btnSendText');
+const btnPasteClipboard = document.getElementById('btnPasteClipboard');
+const btnClearInput = document.getElementById('btnClearInput');
+const btnResetStream = document.getElementById('btnResetStream');
+
 // Initialize Canvas resolution
 canvas.width = phoneResolution.width;
 canvas.height = phoneResolution.height;
@@ -383,10 +390,71 @@ window.addEventListener('mouseup', (e) => {
         console.log(`[Touch Tap] (${startCoords.x}, ${startCoords.y})`);
         sendTouchTap(startCoords.x, startCoords.y);
     } else {
-        // Swipe / Drag
-        const swipeDuration = Math.max(80, Math.min(800, duration));
+        // Swipe / Drag: Độ dài và thời gian vuốt thích ứng siêu nhạy
+        const swipeDuration = Math.round(Math.min(480, Math.max(90, dist * 0.28 + duration * 0.35)));
         console.log(`[Touch Swipe] from (${startCoords.x}, ${startCoords.y}) to (${endCoords.x}, ${endCoords.y}) in ${swipeDuration}ms`);
         sendTouchSwipe(startCoords.x, startCoords.y, endCoords.x, endCoords.y, swipeDuration);
+    }
+});
+
+// 1. TÍNH NĂNG CUỘN CHUỘT MÁY TÍNH (MOUSE WHEEL SCROLLING)
+let wheelThrottleTime = 0;
+screenViewport.addEventListener('wheel', (e) => {
+    if (!isDeviceOnline || isBlackoutActive) return;
+    e.preventDefault();
+
+    const now = performance.now();
+    if (now - wheelThrottleTime < 120) return; // Chống spam làm chậm hệ thống
+    wheelThrottleTime = now;
+
+    const coords = getDeviceCoordinates(e);
+    const direction = e.deltaY > 0 ? 'DOWN' : 'UP';
+    console.log(`[Mouse Wheel] Scroll ${direction} at (${coords.x}, ${coords.y})`);
+
+    if (socket && isAuthenticated) {
+        socket.emit('TOUCH_SCROLL', { direction, x: coords.x, y: coords.y });
+    }
+    showScrollFeedback(coords.visualX, coords.visualY, direction);
+}, { passive: false });
+
+// 2. TÍNH NĂNG GÕ BÀN PHÍM MÁY TÍNH TRỰC TIẾP TRÊN MÀN HÌNH ĐIỆN THOẠI
+screenViewport.addEventListener('keydown', (e) => {
+    if (!isDeviceOnline || isBlackoutActive) return;
+
+    // Ctrl+V hoặc Cmd+V -> Dán Clipboard từ PC vào điện thoại
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'v' || e.key === 'V')) {
+        e.preventDefault();
+        pasteClipboardToPhone();
+        return;
+    }
+
+    // Backspace -> Xóa ký tự
+    if (e.key === 'Backspace') {
+        e.preventDefault();
+        sendKeyEvent('BACKSPACE');
+        showInputToast('⌫ Xóa ký tự');
+        return;
+    }
+
+    // Enter -> Xuống dòng hoặc gửi tin nhắn
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        sendKeyEvent('ENTER');
+        showInputToast('⏎ Enter');
+        return;
+    }
+
+    // Tab -> Bỏ qua mặc định trình duyệt
+    if (e.key === 'Tab') {
+        e.preventDefault();
+        return;
+    }
+
+    // Ký tự thông thường (chữ cái, chữ số, dấu câu)
+    if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        e.preventDefault();
+        sendInputText(e.key, 'append');
+        showInputToast(`⌨ ${e.key}`);
     }
 });
 
@@ -399,6 +467,37 @@ function showTouchRipple(x, y) {
     setTimeout(() => {
         touchRipple.classList.remove('active');
     }, 280);
+}
+
+let toastTimeout = null;
+function showInputToast(message) {
+    let toastEl = document.getElementById('inputHudToast');
+    if (!toastEl) {
+        toastEl = document.createElement('div');
+        toastEl.id = 'inputHudToast';
+        toastEl.className = 'input-hud-toast';
+        screenViewport.appendChild(toastEl);
+    }
+    toastEl.textContent = message;
+    toastEl.classList.remove('visible');
+    void toastEl.offsetWidth;
+    toastEl.classList.add('visible');
+    clearTimeout(toastTimeout);
+    toastTimeout = setTimeout(() => {
+        toastEl.classList.remove('visible');
+    }, 1200);
+}
+
+function showScrollFeedback(visualX, visualY, direction) {
+    const indicator = document.createElement('div');
+    indicator.className = `scroll-feedback-icon ${direction.toLowerCase()}`;
+    indicator.style.left = `${visualX}px`;
+    indicator.style.top = `${visualY}px`;
+    indicator.innerHTML = direction === 'DOWN' ? '<i class="fa-solid fa-arrow-down"></i>' : '<i class="fa-solid fa-arrow-up"></i>';
+    screenViewport.appendChild(indicator);
+    setTimeout(() => {
+        indicator.remove();
+    }, 400);
 }
 
 function drawSwipeTrail(x1, y1, x2, y2) {
@@ -425,6 +524,12 @@ function sendTouchTap(x, y) {
 function sendTouchSwipe(startX, startY, endX, endY, duration) {
     if (socket && isAuthenticated) {
         socket.emit('TOUCH_SWIPE', { startX, startY, endX, endY, duration });
+    }
+}
+
+function sendInputText(text, mode = 'append') {
+    if (socket && isAuthenticated) {
+        socket.emit('INPUT_TEXT', { text, mode });
     }
 }
 
@@ -476,6 +581,73 @@ btnVolDown.addEventListener('click', () => sendKeyEvent('VOLUME_DOWN'));
 btnPhoneBack.addEventListener('click', () => sendKeyEvent('BACK'));
 btnPhoneHome.addEventListener('click', () => sendKeyEvent('HOME'));
 btnPhoneRecents.addEventListener('click', () => sendKeyEvent('RECENTS'));
+
+// Keyboard & Clipboard Actions
+function sendTextFromInput() {
+    if (!pcTextInput) return;
+    const text = pcTextInput.value;
+    if (text.length > 0) {
+        sendInputText(text, 'append');
+        showInputToast(`📤 Đã gửi: "${text.substring(0, 16)}..."`);
+        pcTextInput.value = '';
+    }
+}
+
+if (btnSendText) {
+    btnSendText.addEventListener('click', sendTextFromInput);
+}
+
+if (pcTextInput) {
+    pcTextInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            sendTextFromInput();
+        }
+    });
+}
+
+function pasteClipboardToPhone() {
+    if (navigator.clipboard && navigator.clipboard.readText) {
+        navigator.clipboard.readText().then((text) => {
+            if (text) {
+                if (socket && isAuthenticated) {
+                    socket.emit('SET_CLIPBOARD', { text });
+                    socket.emit('INPUT_TEXT', { text, mode: 'paste' });
+                }
+                showInputToast(`📋 Đã dán: "${text.substring(0, 20)}..."`);
+            } else {
+                showInputToast('⚠️ Khay nhớ tạm PC đang trống');
+            }
+        }).catch((err) => {
+            console.warn('Clipboard read error:', err);
+            showInputToast('⚠️ Cần cấp quyền Clipboard trình duyệt');
+        });
+    } else {
+        showInputToast('⚠️ Trình duyệt không hỗ trợ đọc clipboard');
+    }
+}
+
+if (btnPasteClipboard) {
+    btnPasteClipboard.addEventListener('click', pasteClipboardToPhone);
+}
+
+if (btnClearInput) {
+    btnClearInput.addEventListener('click', () => {
+        if (pcTextInput) pcTextInput.value = '';
+        showInputToast('🧹 Đã xóa ô nhập');
+    });
+}
+
+// Reset Stream / Screen Sync Handler
+if (btnResetStream) {
+    btnResetStream.addEventListener('click', () => {
+        if (socket && isAuthenticated) {
+            console.log('[Dashboard] Requesting Stream Reset & Sync...');
+            socket.emit('RESET_STREAM');
+            isImageLoading = false;
+            showInputToast('🔄 Đang đồng bộ lại màn hình...');
+        }
+    });
+}
 
 // Quality Slider
 qualityRange.addEventListener('input', (e) => {

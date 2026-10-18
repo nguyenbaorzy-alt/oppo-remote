@@ -68,7 +68,7 @@
                 <div class="phone-punch-hole"></div>
 
                 <!-- Screen Viewport -->
-                <div class="screen-viewport" id="screenViewport">
+                <div class="screen-viewport" id="screenViewport" tabindex="0" title="Nhấp vào đây để gõ phím hoặc cuộn chuột">
                     <canvas id="screenCanvas"></canvas>
                     
                     <!-- Touch Ripple / Swipe Visual Effect -->
@@ -175,10 +175,58 @@
                             </button>
                         </div>
                     </div>
+
+                    <div class="divider"></div>
+
+                    <!-- Stream Recovery / Sync Display Button -->
+                    <div class="action-block">
+                        <div class="block-info">
+                            <strong>Khắc phục khi tắt/bật máy bị đen màn:</strong>
+                            <p>Nếu bạn vừa tắt/bật màn hình vật lý mà Web chưa kịp nhận ảnh, nhấn nút này để đồng bộ lại tức thì.</p>
+                        </div>
+                        <button id="btnResetStream" class="btn-action btn-secondary" style="width: 100%;">
+                            <i class="fa-solid fa-arrows-rotate text-cyan"></i> 🔄 Đồng Bộ Lại Màn Hình Ngay
+                        </button>
+                    </div>
                 </div>
             </div>
 
-            <!-- 2. NAVIGATION & GESTURES -->
+            <!-- 2. KEYBOARD & CLIPBOARD INTEGRATION (PC -> PHONE) -->
+            <div class="control-card highlight-card" style="border-color: rgba(6, 182, 212, 0.4);">
+                <div class="card-header">
+                    <div class="card-title">
+                        <i class="fa-solid fa-keyboard text-cyan"></i>
+                        <h2>Bàn Phím &amp; Clipboard (PC &rarr; ĐT)</h2>
+                    </div>
+                    <span class="badge badge-special" style="background: rgba(6, 182, 212, 0.15); color: var(--color-cyan); border-color: rgba(6, 182, 212, 0.4);">Gõ &amp; Dán Trực Tiếp</span>
+                </div>
+                <div class="card-body">
+                    <div class="action-block">
+                        <div class="block-info">
+                            <p>Gõ văn bản, link website hoặc dán mã OTP từ máy tính sang điện thoại:</p>
+                        </div>
+                        <div class="input-with-btn">
+                            <input type="text" id="pcTextInput" placeholder="Nhập chữ hoặc Ctrl+V dán vào đây..." style="flex: 1; text-align: left; letter-spacing: 0;">
+                            <button id="btnSendText" class="btn-primary" title="Gửi sang điện thoại">
+                                <i class="fa-solid fa-paper-plane"></i> Gửi
+                            </button>
+                        </div>
+                        <div class="dual-buttons" style="margin-top: 8px;">
+                            <button id="btnPasteClipboard" class="btn-action btn-secondary">
+                                <i class="fa-solid fa-paste text-emerald"></i> Dán Clipboard PC
+                            </button>
+                            <button id="btnClearInput" class="btn-action btn-secondary">
+                                <i class="fa-solid fa-eraser text-danger"></i> Xóa chữ
+                            </button>
+                        </div>
+                        <small style="color: var(--text-muted); font-size: 0.78rem; display: block; margin-top: 4px;">
+                            💡 <em>Hoặc nhấp chuột vào màn hình điện thoại bên trái rồi gõ bàn phím máy tính trực tiếp!</em>
+                        </small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. NAVIGATION & GESTURES -->
             <div class="control-card">
                 <div class="card-header">
                     <div class="card-title">
@@ -271,15 +319,27 @@
                 <div class="card-body tips-list">
                     <div class="tip-item">
                         <i class="fa-solid fa-hand-pointer"></i>
-                        <span><strong>Click chuột trái:</strong> Chạm đơn (Tap) vào màn hình.</span>
+                        <span><strong>Click chuột trái:</strong> Chạm đơn (Tap) vào màn hình ứng dụng.</span>
                     </div>
                     <div class="tip-item">
                         <i class="fa-solid fa-arrows-up-down-left-right"></i>
-                        <span><strong>Nhấn giữ & Kéo chuột:</strong> Vuốt mượt (Swipe/Scroll) theo mọi hướng.</span>
+                        <span><strong>Nhấn giữ & Kéo chuột:</strong> Vuốt mượt (Swipe/Drag) theo mọi hướng với độ trễ tối thiểu.</span>
                     </div>
                     <div class="tip-item">
-                        <i class="fa-solid fa-shield-halved"></i>
-                        <span><strong>ColorOS Tip:</strong> Luôn dùng nút <em>"Tắt Màn Hình (Smart)"</em> khi không dùng để điện thoại tắt đèn LED mà không bị hệ thống hủy phiên quay màn hình.</span>
+                        <i class="fa-solid fa-computer-mouse text-cyan"></i>
+                        <span><strong>Lăn chuột máy tính (Wheel):</strong> Tự động cuộn trang lướt TikTok, Facebook, tin tức mượt mà.</span>
+                    </div>
+                    <div class="tip-item">
+                        <i class="fa-solid fa-keyboard text-emerald"></i>
+                        <span><strong>Gõ bàn phím PC:</strong> Bấm chuột vào màn hình điện thoại rồi gõ trực tiếp chữ, phím Backspace, phím Enter!</span>
+                    </div>
+                    <div class="tip-item">
+                        <i class="fa-solid fa-paste text-purple"></i>
+                        <span><strong>Dán Clipboard (Ctrl+V):</strong> Bấm Ctrl+V trên màn hình hoặc nút "Dán Clipboard PC" để truyền link, văn bản, OTP ngay lập tức.</span>
+                    </div>
+                    <div class="tip-item">
+                        <i class="fa-solid fa-shield-halved text-warning"></i>
+                        <span><strong>Chống đen màn:</strong> Khi vừa bật màn hình điện thoại mà chưa nhận được khung hình, bấm nút <em>"🔄 Đồng Bộ Lại Màn Hình Ngay"</em>.</span>
                     </div>
                 </div>
             </div>

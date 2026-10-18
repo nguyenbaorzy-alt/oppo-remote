@@ -54,3 +54,18 @@ data class AutoUnlockPayload(
 data class SetQualityPayload(
     @SerializedName("quality") val quality: Int
 )
+
+data class InputTextPayload(
+    @SerializedName("text") val text: String,
+    @SerializedName("mode") val mode: String? = "append" // "set" | "append" | "paste"
+)
+
+data class SetClipboardPayload(
+    @SerializedName("text") val text: String
+)
+
+data class TouchScrollPayload(
+    @SerializedName("direction") val direction: String, // "UP" | "DOWN"
+    @SerializedName("x") val x: Int,
+    @SerializedName("y") val y: Int
+)
