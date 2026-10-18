@@ -24,33 +24,60 @@ const SECRET_PIN = process.env.SECRET_PIN || '123456';
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 
+// Quản lý đa thiết bị (Hỗ trợ đồng thời OPPO, Meizu 21 Pro, v.v.)
+const connectedDevices = new Map(); // socket.id -> { socket, state }
+let activeDeviceId = null;
+const dashboardSockets = new Set();
+
+function getActiveDevice() {
+    if (activeDeviceId && connectedDevices.has(activeDeviceId)) {
+        return connectedDevices.get(activeDeviceId);
+    }
+    // Fallback sang thiết bị đầu tiên nếu có
+    const firstEntry = connectedDevices.entries().next().value;
+    if (firstEntry) {
+        activeDeviceId = firstEntry[0];
+        return firstEntry[1];
+    }
+    return null;
+}
+
+function broadcastDeviceList() {
+    const list = [];
+    for (const [id, dev] of connectedDevices.entries()) {
+        list.push({
+            id: id,
+            model: dev.state.model,
+            androidVersion: dev.state.androidVersion,
+            width: dev.state.width,
+            height: dev.state.height,
+            battery: dev.state.battery,
+            isCharging: dev.state.isCharging,
+            isActive: id === activeDeviceId
+        });
+    }
+
+    const activeDev = getActiveDevice();
+    for (const dash of dashboardSockets) {
+        dash.emit('device_list', {
+            devices: list,
+            activeDeviceId: activeDeviceId,
+            currentDeviceState: activeDev ? activeDev.state : { online: false }
+        });
+    }
+}
+
 // API kiểm tra trạng thái hệ thống
 app.get('/api/status', (req, res) => {
+    const activeDev = getActiveDevice();
     res.json({
         status: 'online',
-        deviceConnected: currentDeviceSocket !== null,
-        deviceInfo: deviceState,
+        deviceCount: connectedDevices.size,
+        activeDevice: activeDev ? activeDev.state : null,
         connectedDashboards: dashboardSockets.size,
         uptime: process.uptime()
     });
 });
-
-// Quản lý kết nối
-let currentDeviceSocket = null;
-const dashboardSockets = new Set();
-let deviceState = {
-    online: false,
-    model: 'OPPO Device',
-    androidVersion: 'Android 14/15 (ColorOS)',
-    width: 1080,
-    height: 2412,
-    battery: 100,
-    isCharging: false,
-    isBlackout: false,
-    quality: 60,
-    fps: 0,
-    lastSeen: 0
-};
 
 io.on('connection', (socket) => {
     console.log(`[Socket Connected] ID: ${socket.id} from ${socket.handshake.address}`);
@@ -58,18 +85,17 @@ io.on('connection', (socket) => {
     let clientType = 'unknown'; // 'device' | 'dashboard'
     let isAuthenticated = false;
 
-    // 1. XÁC THỰC THIẾT BỊ ANDROID (OPPO)
+    // 1. XÁC THỰC THIẾT BỊ ANDROID (OPPO, MEIZU 21 PRO, V.V.)
     socket.on('auth_device', (data) => {
         const pin = data && data.pin ? String(data.pin).trim() : '';
         if (pin === SECRET_PIN) {
             clientType = 'device';
             isAuthenticated = true;
-            currentDeviceSocket = socket;
 
-            deviceState = {
+            const devState = {
                 online: true,
-                model: data.model || 'OPPO Device',
-                androidVersion: data.androidVersion || 'Android 14+ (ColorOS)',
+                model: data.model || 'Android Device',
+                androidVersion: data.androidVersion || 'Android 14+',
                 width: data.width || 1080,
                 height: data.height || 2412,
                 battery: data.battery !== undefined ? data.battery : 100,
@@ -80,13 +106,19 @@ io.on('connection', (socket) => {
                 lastSeen: Date.now()
             };
 
-            socket.emit('auth_result', { success: true, message: 'Device Authenticated Successfully' });
-            console.log(`>>> [OPPO Device Connected & Authenticated] Model: ${deviceState.model} (${deviceState.width}x${deviceState.height})`);
+            connectedDevices.set(socket.id, {
+                socket: socket,
+                state: devState
+            });
 
-            // Báo cho tất cả Dashboard đang mở biết thiết bị đã Online
-            for (const dashSocket of dashboardSockets) {
-                dashSocket.emit('device_status', deviceState);
+            if (!activeDeviceId) {
+                activeDeviceId = socket.id;
             }
+
+            socket.emit('auth_result', { success: true, message: 'Device Authenticated Successfully' });
+            console.log(`>>> [Android Device Connected] Model: ${devState.model} (${devState.width}x${devState.height}) - Total: ${connectedDevices.size}`);
+
+            broadcastDeviceList();
         } else {
             console.warn(`[Device Auth Failed] Wrong PIN from ${socket.id}`);
             socket.emit('auth_result', { success: false, message: 'Invalid SECRET_PIN' });
@@ -105,103 +137,98 @@ io.on('connection', (socket) => {
             socket.emit('auth_result', { success: true, message: 'Dashboard Authenticated' });
             console.log(`[Dashboard Connected] Total Dashboards: ${dashboardSockets.size}`);
 
-            // Gửi ngay trạng thái thiết bị hiện tại về dashboard
-            socket.emit('device_status', deviceState);
+            // Gửi ngay danh sách thiết bị hiện tại về dashboard
+            broadcastDeviceList();
         } else {
             console.warn(`[Dashboard Auth Failed] Wrong PIN: ${pin}`);
             socket.emit('auth_result', { success: false, message: 'Mã PIN bảo mật không đúng' });
         }
     });
 
-    // 3. CHUYỂN TIẾP LUỒNG KHUNG HÌNH (ANDROID -> WEB DASHBOARD)
+    // 3. CHỌN THIẾT BỊ ĐIỀU KHIỂN TỪ WEB (OPPO HOẶC MEIZU 21 PRO)
+    socket.on('SELECT_DEVICE', (data) => {
+        if (!isAuthenticated || clientType !== 'dashboard') return;
+        const targetId = data && data.deviceId;
+        if (targetId && connectedDevices.has(targetId)) {
+            activeDeviceId = targetId;
+            console.log(`[Dashboard Switched Device] Active Device ID: ${activeDeviceId}`);
+            broadcastDeviceList();
+        }
+    });
+
+    // 4. CHUYỂN TIẾP LUỒNG KHUNG HÌNH (TỪ ACTIVE DEVICE -> WEB DASHBOARDS)
     socket.on('stream_frame', (frameData) => {
         if (!isAuthenticated || clientType !== 'device') return;
-        deviceState.lastSeen = Date.now();
+        
+        // Chỉ relay hình ảnh từ thiết bị đang được chọn (Active Device)
+        if (socket.id === activeDeviceId) {
+            const dev = connectedDevices.get(socket.id);
+            if (dev) dev.state.lastSeen = Date.now();
 
-        // Chuyển tiếp ngay lập tức đến các dashboard đang xem
-        if (dashboardSockets.size > 0) {
-            for (const dashSocket of dashboardSockets) {
-                dashSocket.emit('stream_frame', frameData);
+            if (dashboardSockets.size > 0) {
+                for (const dashSocket of dashboardSockets) {
+                    dashSocket.emit('stream_frame', frameData);
+                }
             }
         }
     });
 
-    // 4. CẬP NHẬT TRẠNG THÁI THIẾT BỊ (PIN, SẠC, FPS, ĐỘ PHÂN GIẢI)
+    // 5. CẬP NHẬT TRẠNG THÁI THIẾT BỊ (PIN, SẠC, FPS)
     socket.on('device_status_update', (data) => {
         if (!isAuthenticated || clientType !== 'device') return;
-        deviceState = {
-            ...deviceState,
-            ...data,
-            online: true,
-            lastSeen: Date.now()
-        };
+        const dev = connectedDevices.get(socket.id);
+        if (dev) {
+            dev.state = {
+                ...dev.state,
+                ...data,
+                online: true,
+                lastSeen: Date.now()
+            };
 
-        for (const dashSocket of dashboardSockets) {
-            dashSocket.emit('device_status', deviceState);
+            if (socket.id === activeDeviceId) {
+                for (const dashSocket of dashboardSockets) {
+                    dashSocket.emit('device_status', dev.state);
+                }
+            }
         }
     });
 
-    // 5. CHUYỂN TIẾP CÁC LỆNH ĐIỀU KHIỂN TỪ WEB XUỐNG ANDROID
-    // A. Chạm đơn (TOUCH_TAP)
-    socket.on('TOUCH_TAP', (data) => {
+    // 6. CHUYỂN TIẾP LỆNH ĐIỀU KHIỂN TỪ WEB XUỐNG THIẾT BỊ ĐANG CHỌN
+    function forwardToActiveDevice(event, data) {
         if (!isAuthenticated || clientType !== 'dashboard') return;
-        if (currentDeviceSocket && currentDeviceSocket.connected) {
-            currentDeviceSocket.emit('TOUCH_TAP', data);
+        const activeDev = getActiveDevice();
+        if (activeDev && activeDev.socket.connected) {
+            activeDev.socket.emit(event, data);
         }
-    });
+    }
 
-    // B. Vuốt / Kéo (TOUCH_SWIPE)
-    socket.on('TOUCH_SWIPE', (data) => {
-        if (!isAuthenticated || clientType !== 'dashboard') return;
-        if (currentDeviceSocket && currentDeviceSocket.connected) {
-            currentDeviceSocket.emit('TOUCH_SWIPE', data);
-        }
-    });
-
-    // C. Phím điều hướng hệ thống (KEY_EVENT)
-    socket.on('KEY_EVENT', (data) => {
-        if (!isAuthenticated || clientType !== 'dashboard') return;
-        if (currentDeviceSocket && currentDeviceSocket.connected) {
-            currentDeviceSocket.emit('KEY_EVENT', data);
-        }
-    });
-
-    // D. Chế độ nguồn & Màn hình (POWER_MODE)
-    // Các mode: SCREEN_OFF_SMART | SCREEN_ON_SMART | HARDWARE_WAKE
+    socket.on('TOUCH_TAP', (data) => forwardToActiveDevice('TOUCH_TAP', data));
+    socket.on('TOUCH_SWIPE', (data) => forwardToActiveDevice('TOUCH_SWIPE', data));
+    socket.on('KEY_EVENT', (data) => forwardToActiveDevice('KEY_EVENT', data));
+    
     socket.on('POWER_MODE', (data) => {
-        if (!isAuthenticated || clientType !== 'dashboard') return;
-        if (currentDeviceSocket && currentDeviceSocket.connected) {
-            console.log(`[Command] POWER_MODE: ${JSON.stringify(data)}`);
+        const activeDev = getActiveDevice();
+        if (activeDev && activeDev.socket.connected) {
+            console.log(`[Command] POWER_MODE on ${activeDev.state.model}: ${JSON.stringify(data)}`);
             if (data.mode === 'SCREEN_OFF_SMART') {
-                deviceState.isBlackout = true;
+                activeDev.state.isBlackout = true;
             } else if (data.mode === 'SCREEN_ON_SMART') {
-                deviceState.isBlackout = false;
+                activeDev.state.isBlackout = false;
             }
-            currentDeviceSocket.emit('POWER_MODE', data);
-
-            // Đồng bộ trạng thái Blackout tới các dashboard khác
+            activeDev.socket.emit('POWER_MODE', data);
             for (const dashSocket of dashboardSockets) {
-                dashSocket.emit('device_status', deviceState);
+                dashSocket.emit('device_status', activeDev.state);
             }
         }
     });
 
-    // E. Tự động mở khóa (AUTO_UNLOCK)
-    socket.on('AUTO_UNLOCK', (data) => {
-        if (!isAuthenticated || clientType !== 'dashboard') return;
-        if (currentDeviceSocket && currentDeviceSocket.connected) {
-            console.log(`[Command] AUTO_UNLOCK with PIN: ${data.pin ? '******' : 'None'}`);
-            currentDeviceSocket.emit('AUTO_UNLOCK', data);
-        }
-    });
-
-    // F. Điều chỉnh chất lượng ảnh nén (SET_QUALITY)
+    socket.on('AUTO_UNLOCK', (data) => forwardToActiveDevice('AUTO_UNLOCK', data));
     socket.on('SET_QUALITY', (data) => {
-        if (!isAuthenticated || clientType !== 'dashboard') return;
-        if (currentDeviceSocket && currentDeviceSocket.connected) {
+        const activeDev = getActiveDevice();
+        if (activeDev && activeDev.socket.connected) {
             const quality = Math.max(10, Math.min(100, parseInt(data.quality) || 60));
-            deviceState.quality = quality;
-            currentDeviceSocket.emit('SET_QUALITY', { quality });
+            activeDev.state.quality = quality;
+            activeDev.socket.emit('SET_QUALITY', { quality });
         }
     });
 
@@ -212,13 +239,14 @@ io.on('connection', (socket) => {
 
     // Xử lý ngắt kết nối
     socket.on('disconnect', () => {
-        if (clientType === 'device' && socket === currentDeviceSocket) {
-            console.log(`<<< [OPPO Device Disconnected]`);
-            currentDeviceSocket = null;
-            deviceState.online = false;
-            for (const dashSocket of dashboardSockets) {
-                dashSocket.emit('device_status', deviceState);
+        if (clientType === 'device') {
+            console.log(`<<< [Device Disconnected] ID: ${socket.id}`);
+            connectedDevices.delete(socket.id);
+            if (activeDeviceId === socket.id) {
+                const nextDev = getActiveDevice();
+                activeDeviceId = nextDev ? nextDev.socket.id : null;
             }
+            broadcastDeviceList();
         } else if (clientType === 'dashboard') {
             dashboardSockets.delete(socket);
             console.log(`[Dashboard Disconnected] Remaining: ${dashboardSockets.size}`);
@@ -228,7 +256,7 @@ io.on('connection', (socket) => {
 
 server.listen(PORT, '0.0.0.0', () => {
     console.log('========================================================');
-    console.log(`🚀 OPPO Remote Control Relay Server running on:`);
+    console.log(`🚀 Remote Control Multi-Device Relay Server running on:`);
     console.log(`   Local URL:    http://localhost:${PORT}`);
     console.log(`   Network URL:  http://0.0.0.0:${PORT}`);
     console.log(`   Security PIN: ${SECRET_PIN}`);

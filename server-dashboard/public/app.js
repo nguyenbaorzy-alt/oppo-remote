@@ -111,9 +111,47 @@ function initSocket() {
         }
     });
 
-    // Cập nhật trạng thái thiết bị từ Android
-    socket.on('device_status', (data) => {
+    const deviceSelectDropdown = document.getElementById('deviceSelectDropdown');
+
+    deviceSelectDropdown.addEventListener('change', (e) => {
+        const selectedId = e.target.value;
+        if (selectedId && socket && isAuthenticated) {
+            console.log(`[Dashboard] Switching to device: ${selectedId}`);
+            socket.emit('SELECT_DEVICE', { deviceId: selectedId });
+        }
+    });
+
+    // Danh sách nhiều thiết bị đồng thời (OPPO, Meizu 21 Pro...)
+    socket.on('device_list', (data) => {
         if (!data) return;
+        const { devices, activeDeviceId, currentDeviceState } = data;
+
+        deviceSelectDropdown.innerHTML = '';
+        if (!devices || devices.length === 0) {
+            const opt = document.createElement('option');
+            opt.value = '';
+            opt.textContent = 'Chờ thiết bị...';
+            deviceSelectDropdown.appendChild(opt);
+            updateOnlineStatus(false);
+            return;
+        }
+
+        devices.forEach((dev) => {
+            const opt = document.createElement('option');
+            opt.value = dev.id;
+            opt.textContent = `📱 ${dev.model} (${dev.battery}%)`;
+            if (dev.id === activeDeviceId) {
+                opt.selected = true;
+            }
+            deviceSelectDropdown.appendChild(opt);
+        });
+
+        if (currentDeviceState) {
+            applyDeviceState(currentDeviceState);
+        }
+    });
+
+    function applyDeviceState(data) {
         updateOnlineStatus(Boolean(data.online));
 
         if (data.width && data.height) {
@@ -137,8 +175,13 @@ function initSocket() {
             updateBattery(data.battery, data.isCharging);
         }
 
-        // Cập nhật giao diện Smart Blackout
         setBlackoutState(Boolean(data.isBlackout));
+    }
+
+    // Cập nhật trạng thái thiết bị từ Android
+    socket.on('device_status', (data) => {
+        if (!data) return;
+        applyDeviceState(data);
     });
 
     // Nhận khung hình nén từ thiết bị

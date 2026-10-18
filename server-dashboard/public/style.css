@@ -117,6 +117,22 @@ body.dark-theme {
     font-weight: 600;
 }
 
+.device-selector-chip select {
+    background: transparent;
+    color: var(--text-primary);
+    border: none;
+    font-family: inherit;
+    font-weight: 700;
+    font-size: 0.85rem;
+    cursor: pointer;
+    outline: none;
+}
+
+.device-selector-chip select option {
+    background: var(--bg-surface);
+    color: var(--text-primary);
+}
+
 .pulse-dot {
     width: 10px;
     height: 10px;
