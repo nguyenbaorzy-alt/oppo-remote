@@ -194,18 +194,34 @@ function initSocket() {
     // Nhận khung hình nén từ thiết bị
     const renderImage = new Image();
     let isImageLoading = false;
+    let imageLoadWatchdog = null;
+    let activeBlobUrl = null;
 
     renderImage.onload = () => {
+        clearTimeout(imageLoadWatchdog);
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(renderImage, 0, 0, canvas.width, canvas.height);
         isImageLoading = false;
         frameCount++;
+        if (activeBlobUrl) {
+            URL.revokeObjectURL(activeBlobUrl);
+            activeBlobUrl = null;
+        }
+    };
+
+    renderImage.onerror = () => {
+        clearTimeout(imageLoadWatchdog);
+        console.warn('[Canvas] Error decoding frame, resetting render state');
+        isImageLoading = false;
+        if (activeBlobUrl) {
+            URL.revokeObjectURL(activeBlobUrl);
+            activeBlobUrl = null;
+        }
     };
 
     socket.on('stream_frame', (frameData) => {
         if (!frameData) return;
 
-        // Tính toán lưu lượng dữ liệu (bytes)
         let frameSize = 0;
         let imageSrc = '';
 
@@ -215,13 +231,19 @@ function initSocket() {
         } else if (frameData instanceof ArrayBuffer || ArrayBuffer.isView(frameData)) {
             const blob = new Blob([frameData], { type: 'image/jpeg' });
             imageSrc = URL.createObjectURL(blob);
+            activeBlobUrl = imageSrc;
             frameSize = blob.size;
         }
 
         bytesReceived += frameSize;
 
+        // Watchdog: Nếu sau 250ms chưa load xong, cưỡng chế mở khóa để nhận frame tiếp theo
         if (!isImageLoading) {
             isImageLoading = true;
+            clearTimeout(imageLoadWatchdog);
+            imageLoadWatchdog = setTimeout(() => {
+                isImageLoading = false;
+            }, 250);
             renderImage.src = imageSrc;
         }
     });
@@ -362,59 +384,49 @@ screenViewport.addEventListener('mousedown', (e) => {
     isMouseDown = true;
     mouseDownTime = performance.now();
     startCoords = getDeviceCoordinates(e);
-
-    // Hiển thị hiệu ứng chạm trực quan
-    showTouchRipple(startCoords.visualX, startCoords.visualY);
 });
 
 screenViewport.addEventListener('mousemove', (e) => {
     const coords = getDeviceCoordinates(e);
     coordinateText.textContent = `Tọa độ: (${coords.x}, ${coords.y})`;
-
-    if (isMouseDown) {
-        drawSwipeTrail(startCoords.visualX, startCoords.visualY, coords.visualX, coords.visualY);
-    }
 });
 
 window.addEventListener('mouseup', (e) => {
     if (!isMouseDown) return;
     isMouseDown = false;
-    clearSwipeTrail();
 
     const endCoords = getDeviceCoordinates(e);
-    const duration = Math.round(performance.now() - mouseDownTime);
     const dist = Math.hypot(endCoords.x - startCoords.x, endCoords.y - startCoords.y);
 
-    if (dist < 15 && duration < 300) {
-        // Single Tap
+    if (dist < 10) {
+        // Chạm đơn (Tap)
         console.log(`[Touch Tap] (${startCoords.x}, ${startCoords.y})`);
         sendTouchTap(startCoords.x, startCoords.y);
     } else {
-        // Swipe / Drag: Độ dài và thời gian vuốt thích ứng siêu nhạy
-        const swipeDuration = Math.round(Math.min(480, Math.max(90, dist * 0.28 + duration * 0.35)));
-        console.log(`[Touch Swipe] from (${startCoords.x}, ${startCoords.y}) to (${endCoords.x}, ${endCoords.y}) in ${swipeDuration}ms`);
+        // Vuốt dứt khoát ngay lập tức (100 - 280ms)
+        const swipeDuration = Math.round(Math.min(280, Math.max(70, dist * 0.2)));
+        console.log(`[Touch Swipe] (${startCoords.x}, ${startCoords.y}) -> (${endCoords.x}, ${endCoords.y}) in ${swipeDuration}ms`);
         sendTouchSwipe(startCoords.x, startCoords.y, endCoords.x, endCoords.y, swipeDuration);
     }
 });
 
-// 1. TÍNH NĂNG CUỘN CHUỘT MÁY TÍNH (MOUSE WHEEL SCROLLING)
+// 1. TÍNH NĂNG CUỘN CHUỘT MÁY TÍNH (MOUSE WHEEL) - LƯỚT MƯỢT TRỰC TIẾP
 let wheelThrottleTime = 0;
 screenViewport.addEventListener('wheel', (e) => {
     if (!isDeviceOnline || isBlackoutActive) return;
     e.preventDefault();
 
     const now = performance.now();
-    if (now - wheelThrottleTime < 120) return; // Chống spam làm chậm hệ thống
+    if (now - wheelThrottleTime < 90) return; // Nhạy hơn, không trễ
     wheelThrottleTime = now;
 
     const coords = getDeviceCoordinates(e);
     const direction = e.deltaY > 0 ? 'DOWN' : 'UP';
-    console.log(`[Mouse Wheel] Scroll ${direction} at (${coords.x}, ${coords.y})`);
+    console.log(`[Mouse Wheel] Scroll ${direction}`);
 
     if (socket && isAuthenticated) {
         socket.emit('TOUCH_SCROLL', { direction, x: coords.x, y: coords.y });
     }
-    showScrollFeedback(coords.visualX, coords.visualY, direction);
 }, { passive: false });
 
 // 2. TÍNH NĂNG GÕ BÀN PHÍM MÁY TÍNH TRỰC TIẾP TRÊN MÀN HÌNH ĐIỆN THOẠI
@@ -432,7 +444,6 @@ screenViewport.addEventListener('keydown', (e) => {
     if (e.key === 'Backspace') {
         e.preventDefault();
         sendKeyEvent('BACKSPACE');
-        showInputToast('⌫ Xóa ký tự');
         return;
     }
 
@@ -440,7 +451,6 @@ screenViewport.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
         e.preventDefault();
         sendKeyEvent('ENTER');
-        showInputToast('⏎ Enter');
         return;
     }
 
@@ -454,20 +464,8 @@ screenViewport.addEventListener('keydown', (e) => {
     if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
         e.preventDefault();
         sendInputText(e.key, 'append');
-        showInputToast(`⌨ ${e.key}`);
     }
 });
-
-function showTouchRipple(x, y) {
-    touchRipple.style.left = `${x}px`;
-    touchRipple.style.top = `${y}px`;
-    touchRipple.classList.remove('active');
-    void touchRipple.offsetWidth; // Trigger reflow
-    touchRipple.classList.add('active');
-    setTimeout(() => {
-        touchRipple.classList.remove('active');
-    }, 280);
-}
 
 let toastTimeout = null;
 function showInputToast(message) {
@@ -486,30 +484,6 @@ function showInputToast(message) {
     toastTimeout = setTimeout(() => {
         toastEl.classList.remove('visible');
     }, 1200);
-}
-
-function showScrollFeedback(visualX, visualY, direction) {
-    const indicator = document.createElement('div');
-    indicator.className = `scroll-feedback-icon ${direction.toLowerCase()}`;
-    indicator.style.left = `${visualX}px`;
-    indicator.style.top = `${visualY}px`;
-    indicator.innerHTML = direction === 'DOWN' ? '<i class="fa-solid fa-arrow-down"></i>' : '<i class="fa-solid fa-arrow-up"></i>';
-    screenViewport.appendChild(indicator);
-    setTimeout(() => {
-        indicator.remove();
-    }, 400);
-}
-
-function drawSwipeTrail(x1, y1, x2, y2) {
-    swipeSvg.innerHTML = `
-        <line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" 
-              stroke="#10b981" stroke-width="4" stroke-linecap="round" stroke-dasharray="6 4" opacity="0.8" />
-        <circle cx="${x2}" cy="${y2}" r="6" fill="#10b981" />
-    `;
-}
-
-function clearSwipeTrail() {
-    swipeSvg.innerHTML = '';
 }
 
 /**

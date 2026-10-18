@@ -11,10 +11,19 @@ android {
         applicationId = "com.oppo.remotecontrol"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 2
+        versionName = "1.0.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    signingConfigs {
+        create("fixedDebug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
     }
 
     buildTypes {
@@ -28,6 +37,9 @@ android {
         debug {
             isMinifyEnabled = false
             isDebuggable = true
+            if (file("debug.keystore").exists()) {
+                signingConfig = signingConfigs.getByName("fixedDebug")
+            }
         }
     }
 

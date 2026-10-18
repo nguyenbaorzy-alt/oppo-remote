@@ -129,24 +129,26 @@ class RemoteAccessibilityService : AccessibilityService() {
      */
     fun performScroll(direction: String, x: Float, y: Float) {
         val metrics = resources.displayMetrics
+        val width = metrics.widthPixels.toFloat()
         val height = metrics.heightPixels.toFloat()
-        val scrollDistance = (height * 0.22f).coerceIn(200f, 500f)
 
+        // Cố định vị trí cuộn ở trục giữa màn hình để thao tác lướt trang / TikTok tự nhiên nhất
+        val scrollX = if (x > 50f && x < width - 50f) x else (width / 2f)
         val startY: Float
         val endY: Float
 
         if (direction.uppercase() == "DOWN") {
-            // Cuộn xuống (ngón tay vuốt từ dưới lên trên)
-            startY = (y + scrollDistance / 2).coerceAtMost(height - 60f)
-            endY = (y - scrollDistance / 2).coerceAtLeast(60f)
+            // Cuộn xuống (ngón tay vuốt từ dưới lên trên để nội dung trôi xuống)
+            startY = height * 0.70f
+            endY = height * 0.28f
         } else {
             // Cuộn lên (ngón tay vuốt từ trên xuống dưới)
-            startY = (y - scrollDistance / 2).coerceAtLeast(60f)
-            endY = (y + scrollDistance / 2).coerceAtMost(height - 60f)
+            startY = height * 0.28f
+            endY = height * 0.70f
         }
 
-        Log.d(TAG, "performScroll $direction: ($x, $startY) -> ($x, $endY)")
-        performSwipe(x, startY, x, endY, 160L)
+        Log.d(TAG, "performScroll $direction: ($scrollX, $startY) -> ($scrollX, $endY)")
+        performSwipe(scrollX, startY, scrollX, endY, 140L)
     }
 
     /**

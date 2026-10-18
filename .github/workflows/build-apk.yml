@@ -25,6 +25,12 @@ jobs:
     - name: Cấp quyền thực thi cho gradlew
       run: chmod +x ./android-client/gradlew
 
+    - name: Thiết lập Keystore đồng nhất
+      run: |
+        if [ ! -f android-client/app/debug.keystore ]; then
+          keytool -genkey -v -keystore android-client/app/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=OPPO Remote,O=RemoteControl,C=VN"
+        fi
+
     - name: Biên dịch file APK (Debug)
       run: |
         cd android-client

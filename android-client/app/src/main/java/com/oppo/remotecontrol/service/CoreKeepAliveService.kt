@@ -131,12 +131,16 @@ class CoreKeepAliveService : Service() {
                 Intent.ACTION_SCREEN_ON, Intent.ACTION_USER_PRESENT -> {
                     Log.i(TAG, ">>> Physical screen ON / User Present detected! Triggering stream recovery...")
                     serviceScope.launch {
-                        delay(250) // Chờ hệ điều hành Android đánh thức Display Compositor
+                        delay(350) // Chờ hệ điều hành Android đánh thức Display Compositor
                         refreshStream()
                     }
                 }
                 Intent.ACTION_SCREEN_OFF -> {
-                    Log.i(TAG, ">>> Physical screen OFF detected.")
+                    Log.i(TAG, ">>> Physical screen OFF detected. Releasing VirtualDisplay to avoid stale buffer.")
+                    try {
+                        virtualDisplay?.release()
+                    } catch (_: Exception) {}
+                    virtualDisplay = null
                 }
             }
         }
@@ -371,20 +375,39 @@ class CoreKeepAliveService : Service() {
 
     /**
      * Khắc phục hiện tượng đen màn hình khi bật lại màn hình vật lý:
-     * Tái liên kết Surface của ImageReader và kích hoạt VirtualDisplay resize
+     * Hủy bỏ VirtualDisplay cũ và tạo mới lại từ MediaProjection & ImageReader
      */
     fun refreshStream() {
         try {
-            Log.i(TAG, ">>> [refreshStream] Re-linking ImageReader and triggering VirtualDisplay resize...")
-            val oldReader = imageReader
-            val newReader = ImageReader.newInstance(screenWidth, screenHeight, PixelFormat.RGBA_8888, 2)
-            virtualDisplay?.surface = newReader.surface
-            imageReader = newReader
-            oldReader?.close()
+            Log.i(TAG, ">>> [refreshStream] Re-creating VirtualDisplay & ImageReader...")
+            try {
+                virtualDisplay?.release()
+            } catch (_: Exception) {}
+            virtualDisplay = null
 
-            virtualDisplay?.resize(screenWidth, screenHeight, screenDensity)
+            try {
+                imageReader?.close()
+            } catch (_: Exception) {}
+            imageReader = ImageReader.newInstance(screenWidth, screenHeight, PixelFormat.RGBA_8888, 2)
 
-            // Khởi động lại vòng lặp capture nếu đang bị gián đoạn
+            val mp = mediaProjection
+            if (mp != null) {
+                virtualDisplay = mp.createVirtualDisplay(
+                    "OPPO_REMOTE_DISPLAY",
+                    screenWidth,
+                    screenHeight,
+                    screenDensity,
+                    DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+                    imageReader?.surface,
+                    null,
+                    null
+                )
+                Log.i(TAG, ">>> [refreshStream] VirtualDisplay successfully recreated!")
+            } else {
+                Log.w(TAG, ">>> [refreshStream] MediaProjection is null")
+            }
+
+            // Đảm bảo vòng lặp frame luôn sống
             startFrameCaptureLoop()
             Log.i(TAG, ">>> [refreshStream] Stream refreshed and buffer active.")
         } catch (e: Exception) {
@@ -421,9 +444,10 @@ class CoreKeepAliveService : Service() {
                     delay(35 - elapsed)
                 }
 
-                val reader = imageReader ?: run {
+                val reader = imageReader
+                if (reader == null) {
                     delay(50)
-                    return@launch
+                    continue
                 }
 
                 val image = try {
