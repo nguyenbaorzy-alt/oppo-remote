@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: oppo-remote-server
+    runtime: node
+    plan: free
+    rootDir: server-dashboard
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: SECRET_PIN
+        value: 123456

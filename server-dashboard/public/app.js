@@ -261,19 +261,31 @@ renderImage.onerror = () => {
 
 function getRelayServerUrl() {
     const input = document.getElementById('serverUrlInput');
-    if (input && input.value && input.value.trim()) {
-        return input.value.trim().replace(/\/+$/, '');
-    }
-    const saved = localStorage.getItem('oppo_relay_server_url');
-    if (saved) return saved.trim().replace(/\/+$/, '');
+    const isStaticHost = window.location.hostname.endsWith('netlify.app') || 
+                         window.location.hostname.endsWith('vercel.app') || 
+                         window.location.hostname.endsWith('github.io');
 
-    // Nếu chạy trên domain ngoài (Netlify, Vercel, v.v.)
-    if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' && window.location.protocol !== 'file:') {
-        return 'https://chest-summaries-drainage-isa.trycloudflare.com';
+    // Nếu chạy trên host tĩnh riêng (Netlify/Vercel)
+    if (isStaticHost) {
+        if (input && input.value && input.value.trim()) {
+            return input.value.trim().replace(/\/+$/, '');
+        }
+        const saved = localStorage.getItem('oppo_relay_server_url');
+        if (saved) return saved.trim().replace(/\/+$/, '');
+        return 'https://testimony-destinations-prize-systematic.trycloudflare.com';
     }
 
+    // Nếu mở file HTML offline từ ổ cứng
     if (window.location.protocol === 'file:' || !window.location.host) {
+        if (input && input.value && input.value.trim()) {
+            return input.value.trim().replace(/\/+$/, '');
+        }
         return 'http://localhost:3000';
+    }
+
+    // Đang chạy trực tiếp từ Máy Chủ Node.js (Render Cloud, Koyeb, Glitch, hoặc Local PC)
+    if (input && input.value && input.value.trim() && input.value !== window.location.origin && !input.value.includes('trycloudflare.com')) {
+        return input.value.trim().replace(/\/+$/, '');
     }
 
     return window.location.origin;
@@ -297,7 +309,7 @@ function initSocket() {
     }
 
     const input = document.getElementById('serverUrlInput');
-    if (input && !input.value) {
+    if (input) {
         input.value = serverUrl;
     }
 
