@@ -195,6 +195,7 @@ io.on('connection', (socket) => {
 
     socket.on('orientation_changed', (data) => {
         if (!isAuthenticated || clientType !== 'device') return;
+        console.log(`>>> [Orientation Changed] Device ${socket.id} -> ${data.width}x${data.height} (Landscape: ${data.isLandscape})`);
         if (socket.id === activeDeviceId) {
             const dev = connectedDevices.get(socket.id);
             if (dev) {
@@ -224,6 +225,10 @@ io.on('connection', (socket) => {
     socket.on('INPUT_TEXT', (data) => forwardToActiveDevice('INPUT_TEXT', data));
     socket.on('SET_CLIPBOARD', (data) => forwardToActiveDevice('SET_CLIPBOARD', data));
     socket.on('RESET_STREAM', (data) => forwardToActiveDevice('RESET_STREAM', data));
+    socket.on('TOGGLE_ORIENTATION', (data) => {
+        console.log(`[Dashboard Command] TOGGLE_ORIENTATION requested`);
+        forwardToActiveDevice('TOGGLE_ORIENTATION', data);
+    });
     
     socket.on('POWER_MODE', (data) => {
         const activeDev = getActiveDevice();

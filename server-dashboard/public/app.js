@@ -166,20 +166,39 @@ function initSocket() {
         canvas.width = width;
         canvas.height = height;
 
+        const container = document.querySelector('.dashboard-container');
         if (phoneChassis) {
             if (isLandscape) {
                 phoneChassis.classList.add('landscape');
+                if (container) container.classList.add('is-landscape');
                 phoneChassis.style.maxWidth = '780px';
                 phoneChassis.style.aspectRatio = `${width} / ${height}`;
             } else {
                 phoneChassis.classList.remove('landscape');
+                if (container) container.classList.remove('is-landscape');
                 phoneChassis.style.maxWidth = '410px';
                 phoneChassis.style.aspectRatio = '9 / 19.5';
             }
         }
 
         resolutionText.textContent = `Độ phân giải: ${width} x ${height} (${isLandscape ? 'Màn Hình Ngang' : 'Màn Hình Dọc'})`;
-        resTelemetry.textContent = `${width}x${height} ${isLandscape ? '🔄' : '📱'}`;
+        resTelemetry.textContent = `${width}x${height} ${isLandscape ? '🔄 Ngang' : '📱 Dọc'}`;
+    }
+
+    function toggleOrientation() {
+        const isCurrentlyLandscape = phoneResolution.width > phoneResolution.height;
+        const newIsLandscape = !isCurrentlyLandscape;
+        const minDim = Math.min(phoneResolution.width, phoneResolution.height);
+        const maxDim = Math.max(phoneResolution.width, phoneResolution.height);
+        const targetWidth = newIsLandscape ? maxDim : minDim;
+        const targetHeight = newIsLandscape ? minDim : maxDim;
+
+        console.log(`[Manual Toggle] Orientation -> ${targetWidth}x${targetHeight} (Landscape: ${newIsLandscape})`);
+        applyOrientation(targetWidth, targetHeight, newIsLandscape);
+
+        if (socket && isAuthenticated) {
+            socket.emit('TOGGLE_ORIENTATION', { isLandscape: newIsLandscape, width: targetWidth, height: targetHeight });
+        }
     }
 
     function applyDeviceState(data) {
@@ -227,6 +246,18 @@ function initSocket() {
 
     renderImage.onload = () => {
         clearTimeout(imageLoadWatchdog);
+
+        // Tự động nhận diện hướng xoay màn hình từ khung hình JPEG thực tế
+        const imgW = renderImage.naturalWidth;
+        const imgH = renderImage.naturalHeight;
+        if (imgW > 0 && imgH > 0) {
+            const isFrameLandscape = imgW > imgH;
+            if (canvas.width !== imgW || canvas.height !== imgH) {
+                console.log(`[Auto-Detect Frame Orientation] ${imgW}x${imgH} (Landscape: ${isFrameLandscape})`);
+                applyOrientation(imgW, imgH, isFrameLandscape);
+            }
+        }
+
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(renderImage, 0, 0, canvas.width, canvas.height);
         isImageLoading = false;
@@ -583,6 +614,16 @@ btnVolDown.addEventListener('click', () => sendKeyEvent('VOLUME_DOWN'));
 btnPhoneBack.addEventListener('click', () => sendKeyEvent('BACK'));
 btnPhoneHome.addEventListener('click', () => sendKeyEvent('HOME'));
 btnPhoneRecents.addEventListener('click', () => sendKeyEvent('RECENTS'));
+
+// Rotate buttons
+const btnToggleRotate = document.getElementById('btnToggleRotate');
+if (btnToggleRotate) {
+    btnToggleRotate.addEventListener('click', toggleOrientation);
+}
+const btnDeckRotate = document.getElementById('btnDeckRotate');
+if (btnDeckRotate) {
+    btnDeckRotate.addEventListener('click', toggleOrientation);
+}
 
 // Keyboard & Clipboard Actions
 function sendTextFromInput() {

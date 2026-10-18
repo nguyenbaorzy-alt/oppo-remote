@@ -128,6 +128,9 @@
             <!-- Coordinate / Resolution Indicator -->
             <div class="screen-info-footer">
                 <span id="resolutionText">Độ phân giải: 1080 x 2412</span>
+                <button id="btnToggleRotate" class="btn-rotate-pill" title="Xoay Ngang / Dọc màn hình">
+                    <i class="fa-solid fa-rotate"></i> 🔄 Xoay Ngang / Dọc
+                </button>
                 <span id="coordinateText">Tọa độ: (0, 0)</span>
             </div>
         </section>
@@ -260,6 +263,12 @@
                         </button>
                         <button class="btn-secondary" id="btnVolDown">
                             <i class="fa-solid fa-volume-low"></i> Giảm âm lượng
+                        </button>
+                    </div>
+
+                    <div style="margin-top: 10px;">
+                        <button class="btn-action btn-secondary" id="btnDeckRotate" style="width: 100%;">
+                            <i class="fa-solid fa-rotate text-cyan"></i> 🔄 Xoay Màn Hình (Ngang / Dọc)
                         </button>
                     </div>
                 </div>

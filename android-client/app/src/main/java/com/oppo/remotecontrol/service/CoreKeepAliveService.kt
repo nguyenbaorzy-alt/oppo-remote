@@ -14,6 +14,7 @@ import android.content.pm.ServiceInfo
 import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.PixelFormat
+import android.hardware.SensorManager
 import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
 import android.media.AudioManager
@@ -30,6 +31,8 @@ import android.os.PowerManager
 import android.util.DisplayMetrics
 import android.util.Log
 import android.view.Display
+import android.view.OrientationEventListener
+import android.view.Surface
 import android.view.WindowManager
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
@@ -94,12 +97,16 @@ class CoreKeepAliveService : Service() {
     private var imageReader: ImageReader? = null
     private var displayManager: DisplayManager? = null
     private var displayListener: DisplayManager.DisplayListener? = null
+    private var orientationEventListener: OrientationEventListener? = null
 
     // Kích thước & Cấu hình màn hình
     private var screenWidth = 1080
     private var screenHeight = 2412
+    private var naturalWidth = 1080
+    private var naturalHeight = 2412
     private var screenDensity = 400
     private var currentQuality = 60 // 20 - 80%
+    private val streamLock = Any()
 
     // Trạng thái stream
     @Volatile
@@ -179,6 +186,22 @@ class CoreKeepAliveService : Service() {
         }
         displayManager?.registerDisplayListener(displayListener, Handler(Looper.getMainLooper()))
 
+        // Lắng nghe cảm biến gia tốc xoay máy vật lý (OrientationEventListener)
+        try {
+            orientationEventListener = object : OrientationEventListener(this, SensorManager.SENSOR_DELAY_NORMAL) {
+                override fun onOrientationChanged(orientation: Int) {
+                    if (orientation == ORIENTATION_UNKNOWN) return
+                    checkOrientationChange()
+                }
+            }
+            if (orientationEventListener?.canDetectOrientation() == true) {
+                orientationEventListener?.enable()
+                Log.i(TAG, "OrientationEventListener enabled successfully")
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not initialize OrientationEventListener", e)
+        }
+
         Log.i(TAG, "CoreKeepAliveService created")
     }
 
@@ -238,6 +261,10 @@ class CoreKeepAliveService : Service() {
         try {
             displayManager?.unregisterDisplayListener(displayListener)
         } catch (_: Exception) {}
+        try {
+            orientationEventListener?.disable()
+        } catch (_: Exception) {}
+        orientationEventListener = null
         instance = null
         isConnectedToSocket = false
         Log.i(TAG, "CoreKeepAliveService destroyed")
@@ -356,11 +383,16 @@ class CoreKeepAliveService : Service() {
         @Suppress("DEPRECATION")
         wm.defaultDisplay.getRealMetrics(metrics)
 
-        screenWidth = metrics.widthPixels
-        screenHeight = metrics.heightPixels
+        naturalWidth = minOf(metrics.widthPixels, metrics.heightPixels)
+        naturalHeight = maxOf(metrics.widthPixels, metrics.heightPixels)
         screenDensity = metrics.densityDpi
 
-        Log.i(TAG, "Device resolution: ${screenWidth}x$screenHeight, DPI: $screenDensity")
+        val rotation = wm.defaultDisplay.rotation
+        val isLandscape = (rotation == Surface.ROTATION_90 || rotation == Surface.ROTATION_270 || metrics.widthPixels > metrics.heightPixels)
+        screenWidth = if (isLandscape) naturalHeight else naturalWidth
+        screenHeight = if (isLandscape) naturalWidth else naturalHeight
+
+        Log.i(TAG, "Device natural resolution: ${naturalWidth}x${naturalHeight}, current: ${screenWidth}x${screenHeight}, DPI: $screenDensity, rotation: $rotation")
 
         val projectionCallback = object : MediaProjection.Callback() {
             override fun onStop() {
@@ -372,32 +404,36 @@ class CoreKeepAliveService : Service() {
         mediaProjection = mediaProjectionManager?.getMediaProjection(resultCode, resultData)
         mediaProjection?.registerCallback(projectionCallback, null)
 
-        imageReader = ImageReader.newInstance(screenWidth, screenHeight, PixelFormat.RGBA_8888, 2)
-        virtualDisplay = mediaProjection?.createVirtualDisplay(
-            "OPPO_REMOTE_DISPLAY",
-            screenWidth,
-            screenHeight,
-            screenDensity,
-            DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
-            imageReader?.surface,
-            null,
-            null
-        )
+        synchronized(streamLock) {
+            imageReader = ImageReader.newInstance(screenWidth, screenHeight, PixelFormat.RGBA_8888, 2)
+            virtualDisplay = mediaProjection?.createVirtualDisplay(
+                "OPPO_REMOTE_DISPLAY",
+                screenWidth,
+                screenHeight,
+                screenDensity,
+                DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+                imageReader?.surface,
+                null,
+                null
+            )
+        }
 
         Log.i(TAG, "VirtualDisplay created successfully")
     }
 
     private fun releaseMediaProjection() {
-        try {
-            virtualDisplay?.release()
-            virtualDisplay = null
-            imageReader?.close()
-            imageReader = null
-            mediaProjection?.stop()
-            mediaProjection = null
-            Log.i(TAG, "MediaProjection resources cleaned")
-        } catch (e: Exception) {
-            Log.e(TAG, "Error cleaning MediaProjection", e)
+        synchronized(streamLock) {
+            try {
+                virtualDisplay?.release()
+                virtualDisplay = null
+                imageReader?.close()
+                imageReader = null
+                mediaProjection?.stop()
+                mediaProjection = null
+                Log.i(TAG, "MediaProjection resources cleaned")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error cleaning MediaProjection", e)
+            }
         }
     }
 
@@ -406,40 +442,38 @@ class CoreKeepAliveService : Service() {
      * Hủy bỏ VirtualDisplay cũ và tạo mới lại từ MediaProjection & ImageReader
      */
     fun refreshStream() {
-        try {
-            Log.i(TAG, ">>> [refreshStream] Re-creating VirtualDisplay & ImageReader...")
+        synchronized(streamLock) {
             try {
-                virtualDisplay?.release()
-            } catch (_: Exception) {}
-            virtualDisplay = null
+                Log.i(TAG, ">>> [refreshStream] Re-creating VirtualDisplay & ImageReader...")
+                try {
+                    virtualDisplay?.release()
+                } catch (_: Exception) {}
+                virtualDisplay = null
 
-            try {
-                imageReader?.close()
-            } catch (_: Exception) {}
-            imageReader = ImageReader.newInstance(screenWidth, screenHeight, PixelFormat.RGBA_8888, 2)
+                try {
+                    imageReader?.close()
+                } catch (_: Exception) {}
+                imageReader = ImageReader.newInstance(screenWidth, screenHeight, PixelFormat.RGBA_8888, 2)
 
-            val mp = mediaProjection
-            if (mp != null) {
-                virtualDisplay = mp.createVirtualDisplay(
-                    "OPPO_REMOTE_DISPLAY",
-                    screenWidth,
-                    screenHeight,
-                    screenDensity,
-                    DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
-                    imageReader?.surface,
-                    null,
-                    null
-                )
-                Log.i(TAG, ">>> [refreshStream] VirtualDisplay successfully recreated!")
-            } else {
-                Log.w(TAG, ">>> [refreshStream] MediaProjection is null")
+                val mp = mediaProjection
+                if (mp != null) {
+                    virtualDisplay = mp.createVirtualDisplay(
+                        "OPPO_REMOTE_DISPLAY",
+                        screenWidth,
+                        screenHeight,
+                        screenDensity,
+                        DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+                        imageReader?.surface,
+                        null,
+                        null
+                    )
+                    Log.i(TAG, ">>> [refreshStream] VirtualDisplay successfully recreated!")
+                } else {
+                    Log.w(TAG, ">>> [refreshStream] MediaProjection is null")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error during stream refresh", e)
             }
-
-            // Đảm bảo vòng lặp frame luôn sống
-            startFrameCaptureLoop()
-            Log.i(TAG, ">>> [refreshStream] Stream refreshed and buffer active.")
-        } catch (e: Exception) {
-            Log.e(TAG, "Error during stream refresh", e)
         }
     }
 
@@ -448,34 +482,91 @@ class CoreKeepAliveService : Service() {
      * để hình ảnh trên Web không bị co nhỏ (letterbox) và xoay theo đúng tỉ lệ màn hình
      */
     fun checkOrientationChange() {
-        val wm = getSystemService(Context.WINDOW_SERVICE) as? WindowManager ?: return
-        val metrics = DisplayMetrics()
-        @Suppress("DEPRECATION")
-        wm.defaultDisplay.getRealMetrics(metrics)
+        try {
+            val wm = getSystemService(Context.WINDOW_SERVICE) as? WindowManager ?: return
+            val rotation = wm.defaultDisplay.rotation
+            val isRotated = (rotation == Surface.ROTATION_90 || rotation == Surface.ROTATION_270)
 
-        val newWidth = metrics.widthPixels
-        val newHeight = metrics.heightPixels
-        val newDensity = metrics.densityDpi
+            val metrics = DisplayMetrics()
+            @Suppress("DEPRECATION")
+            wm.defaultDisplay.getRealMetrics(metrics)
+            val isMetricsLandscape = metrics.widthPixels > metrics.heightPixels
+            val isConfigLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
-        if (newWidth != screenWidth || newHeight != screenHeight) {
-            Log.i(TAG, ">>> [Orientation Change] Screen rotated: ${screenWidth}x${screenHeight} -> ${newWidth}x${newHeight}")
-            screenWidth = newWidth
-            screenHeight = newHeight
-            screenDensity = newDensity
+            val isLandscape = isRotated || isMetricsLandscape || isConfigLandscape
 
-            refreshStream()
+            val minDim = minOf(naturalWidth, naturalHeight)
+            val maxDim = maxOf(naturalWidth, naturalHeight)
+            val targetWidth = if (isLandscape) maxDim else minDim
+            val targetHeight = if (isLandscape) minDim else maxDim
 
-            val isLandscape = screenWidth > screenHeight
-            serviceScope.launch {
-                val orientationData = JSONObject().apply {
-                    put("width", screenWidth)
-                    put("height", screenHeight)
-                    put("isLandscape", isLandscape)
+            if (targetWidth != screenWidth || targetHeight != screenHeight) {
+                Log.i(TAG, ">>> [Orientation Change Detected] Screen rotated: ${screenWidth}x${screenHeight} -> ${targetWidth}x${targetHeight} (Landscape: $isLandscape, Rotation: $rotation)")
+                applyOrientation(targetWidth, targetHeight, isLandscape)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error checking orientation", e)
+        }
+    }
+
+    /**
+     * Thay đổi kích thước VirtualDisplay và tạo ImageReader mới khi xoay màn hình
+     */
+    fun applyOrientation(targetWidth: Int, targetHeight: Int, isLandscape: Boolean) {
+        synchronized(streamLock) {
+            screenWidth = targetWidth
+            screenHeight = targetHeight
+
+            try {
+                val newReader = ImageReader.newInstance(screenWidth, screenHeight, PixelFormat.RGBA_8888, 2)
+                if (virtualDisplay != null) {
+                    virtualDisplay?.setSurface(newReader.surface)
+                    virtualDisplay?.resize(screenWidth, screenHeight, screenDensity)
+                } else {
+                    virtualDisplay = mediaProjection?.createVirtualDisplay(
+                        "OPPO_REMOTE_DISPLAY",
+                        screenWidth,
+                        screenHeight,
+                        screenDensity,
+                        DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+                        newReader.surface,
+                        null,
+                        null
+                    )
                 }
-                socket?.emit("orientation_changed", orientationData)
-                socket?.emit("device_status_update", orientationData)
+                val oldReader = imageReader
+                imageReader = newReader
+                try {
+                    oldReader?.close()
+                } catch (_: Exception) {}
+                Log.i(TAG, ">>> VirtualDisplay resized to ${screenWidth}x${screenHeight} and new ImageReader attached!")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error updating VirtualDisplay for orientation change", e)
             }
         }
+
+        serviceScope.launch {
+            val orientationData = JSONObject().apply {
+                put("width", screenWidth)
+                put("height", screenHeight)
+                put("isLandscape", isLandscape)
+            }
+            socket?.emit("orientation_changed", orientationData)
+            socket?.emit("device_status_update", orientationData)
+        }
+    }
+
+    /**
+     * Xoay màn hình thủ công theo yêu cầu từ Dashboard
+     */
+    fun toggleOrientation() {
+        val minDim = minOf(naturalWidth, naturalHeight)
+        val maxDim = maxOf(naturalWidth, naturalHeight)
+        val newIsLandscape = (screenWidth < screenHeight)
+        val targetWidth = if (newIsLandscape) maxDim else minDim
+        val targetHeight = if (newIsLandscape) minDim else maxDim
+        Log.i(TAG, "Manual toggle orientation: newIsLandscape=$newIsLandscape (${targetWidth}x${targetHeight})")
+        applyOrientation(targetWidth, targetHeight, newIsLandscape)
     }
 
     // =========================================================================
@@ -492,12 +583,18 @@ class CoreKeepAliveService : Service() {
         captureJob = serviceScope.launch {
             Log.i(TAG, "Starting screen capture loop...")
             var lastFrameTime = 0L
+            var loopCount = 0L
 
             while (isActive) {
                 // Nếu đang ở chế độ Smart Blackout hoặc Socket chưa kết nối, ngủ tiết kiệm pin
                 if (isStreamingPaused || socket == null || socket?.connected() != true) {
                     delay(150)
                     continue
+                }
+
+                loopCount++
+                if (loopCount % 15L == 0L) {
+                    checkOrientationChange()
                 }
 
                 val now = System.currentTimeMillis()
@@ -521,16 +618,18 @@ class CoreKeepAliveService : Service() {
 
                 if (image != null) {
                     try {
+                        val imgWidth = image.width
+                        val imgHeight = image.height
                         val planes = image.planes
                         val buffer = planes[0].buffer
                         val pixelStride = planes[0].pixelStride
                         val rowStride = planes[0].rowStride
-                        val rowPadding = rowStride - pixelStride * screenWidth
+                        val rowPadding = rowStride - pixelStride * imgWidth
 
                         // Tạo Bitmap từ buffer
                         val bitmap = Bitmap.createBitmap(
-                            screenWidth + rowPadding / pixelStride,
-                            screenHeight,
+                            imgWidth + rowPadding / pixelStride,
+                            imgHeight,
                             Bitmap.Config.ARGB_8888
                         )
                         bitmap.copyPixelsFromBuffer(buffer)
@@ -538,7 +637,7 @@ class CoreKeepAliveService : Service() {
                         val cleanBitmap = if (rowPadding == 0) {
                             bitmap
                         } else {
-                            val cropped = Bitmap.createBitmap(bitmap, 0, 0, screenWidth, screenHeight)
+                            val cropped = Bitmap.createBitmap(bitmap, 0, 0, imgWidth, imgHeight)
                             bitmap.recycle()
                             cropped
                         }
@@ -689,6 +788,12 @@ class CoreKeepAliveService : Service() {
             socket?.on("RESET_STREAM") {
                 Log.i(TAG, ">>> Received RESET_STREAM command from dashboard")
                 refreshStream()
+            }
+
+            // Nhận lệnh xoay màn hình thủ công từ Dashboard
+            socket?.on("TOGGLE_ORIENTATION") {
+                Log.i(TAG, ">>> Received TOGGLE_ORIENTATION command from dashboard")
+                toggleOrientation()
             }
 
             // Nhận phím điều hướng hệ thống

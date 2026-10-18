@@ -214,6 +214,7 @@ body.dark-theme {
     transform: translateY(-50%);
 }
 
+.dashboard-container.is-landscape,
 .dashboard-container:has(.phone-chassis.landscape) {
     grid-template-columns: minmax(520px, 820px) 1fr;
 }
@@ -532,12 +533,44 @@ body.dark-theme {
 .screen-info-footer {
     display: flex;
     justify-content: space-between;
+    align-items: center;
     width: 100%;
     max-width: 410px;
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.75rem;
     color: var(--text-muted);
     padding: 0 6px;
+    transition: max-width 0.3s ease;
+}
+
+.phone-chassis.landscape + .screen-info-footer,
+.dashboard-container.is-landscape .screen-info-footer {
+    max-width: 780px;
+}
+
+.btn-rotate-pill {
+    background: rgba(6, 182, 212, 0.15);
+    border: 1px solid rgba(6, 182, 212, 0.4);
+    color: var(--color-cyan);
+    font-size: 0.74rem;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 12px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    transition: all 0.2s ease;
+}
+
+.btn-rotate-pill:hover {
+    background: rgba(6, 182, 212, 0.3);
+    color: #fff;
+    transform: translateY(-1px);
+}
+
+.btn-rotate-pill:active {
+    transform: scale(0.95);
 }
 
 /* CONTROL DECK (RIGHT) */
