@@ -1,0 +1,17 @@
+{
+  "name": "oppo-remote-server-dashboard",
+  "version": "1.0.0",
+  "description": "High-performance WebSocket & HTTP Relay Server for OPPO ColorOS Remote Control",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test_relay.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "socket.io": "^4.7.5"
+  },
+  "devDependencies": {
+    "socket.io-client": "^4.7.5"
+  }
+}

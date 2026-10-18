@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">OPPO Remote Control</string>
+    <string name="accessibility_service_description">Dịch vụ Trợ năng cho OPPO Remote Control, hỗ trợ thực thi thao tác chạm/vuốt từ xa và kích hoạt chế độ Tắt màn hình thông minh (Smart Blackout) chống tắt tiến trình trên ColorOS.</string>
+    <string name="notification_channel_name">OPPO Remote Keep-Alive</string>
+    <string name="notification_channel_desc">Duy trì kết nối nền và dịch vụ truyền màn hình không bị ColorOS đóng băng</string>
+    <string name="notification_title">OPPO Remote Control Đang Chạy</string>
+    <string name="notification_text">Đang duy trì phiên kết nối ngầm và truyền màn hình độ trễ thấp</string>
+</resources>

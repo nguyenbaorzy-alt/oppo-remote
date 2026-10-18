@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OPPO Remote Control System - ColorOS Specialized Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+</head>
+<body class="dark-theme">
+    <!-- Header -->
+    <header class="top-nav">
+        <div class="logo-area">
+            <div class="logo-icon">
+                <i class="fa-solid fa-mobile-screen-button"></i>
+            </div>
+            <div class="logo-title">
+                <h1>OPPO Remote Control <span>ColorOS Pro</span></h1>
+                <p class="subtitle">Anti-Kill Background • Non-Revocable MediaProjection • Ultra Low Latency</p>
+            </div>
+        </div>
+
+        <div class="top-status-bar">
+            <!-- Connection Status -->
+            <div class="status-chip" id="deviceStatusChip">
+                <span class="pulse-dot offline"></span>
+                <span class="status-text" id="deviceStatusText">Đang ngắt kết nối</span>
+            </div>
+
+            <!-- Battery Chip -->
+            <div class="status-chip" id="batteryChip">
+                <i class="fa-solid fa-battery-half" id="batteryIcon"></i>
+                <span id="batteryText">--%</span>
+            </div>
+
+            <!-- FPS Chip -->
+            <div class="status-chip">
+                <i class="fa-solid fa-gauge-high"></i>
+                <span id="fpsCounter">0 FPS</span>
+            </div>
+
+            <!-- Latency Chip -->
+            <div class="status-chip">
+                <i class="fa-solid fa-bolt"></i>
+                <span id="pingCounter">-- ms</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="dashboard-container">
+        <!-- LEFT: Phone Screen Simulator & Canvas -->
+        <section class="phone-stage">
+            <div class="phone-chassis" id="phoneChassis">
+                <!-- Phone Bezel Details -->
+                <div class="phone-speaker"></div>
+                <div class="phone-punch-hole"></div>
+
+                <!-- Screen Viewport -->
+                <div class="screen-viewport" id="screenViewport">
+                    <canvas id="screenCanvas"></canvas>
+                    
+                    <!-- Touch Ripple / Swipe Visual Effect -->
+                    <div id="touchRipple" class="touch-ripple"></div>
+                    <svg id="swipePathSvg" class="swipe-svg"></svg>
+
+                    <!-- Offline / Connecting Overlay -->
+                    <div id="screenOverlay" class="screen-overlay">
+                        <div class="overlay-card">
+                            <div class="spinner-icon">
+                                <i class="fa-solid fa-satellite-dish fa-spin"></i>
+                            </div>
+                            <h3 id="overlayTitle">Chờ kết nối thiết bị</h3>
+                            <p id="overlayDesc">Hãy mở ứng dụng <strong>OPPO Remote Client</strong> trên điện thoại và nhấn <em>"Bắt đầu kết nối"</em></p>
+                            <div class="pin-verify-box">
+                                <label for="authPinInput">Mã PIN bảo mật:</label>
+                                <div class="input-with-btn">
+                                    <input type="password" id="authPinInput" value="123456" maxlength="10">
+                                    <button id="btnConnectDashboard" class="btn-primary">
+                                        <i class="fa-solid fa-key"></i> Kết Nối
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Smart Blackout Overlay on Web -->
+                    <div id="blackoutIndicator" class="blackout-curtain hidden">
+                        <div class="blackout-badge">
+                            <i class="fa-solid fa-moon"></i>
+                            <span>Chế độ Ngủ Đông Giả Lập Đang Bật (AMOLED Blackout)</span>
+                            <small>Màn hình điện thoại đen tuyệt đối 0% độ sáng - Tiến trình vẫn chạy sống 100%</small>
+                            <button id="btnWakeFromBlackout" class="btn-wake">
+                                <i class="fa-solid fa-sun"></i> Đánh Thức Màn Hình Ngay
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Physical Navigation Bar at the bottom of Phone -->
+                <div class="bottom-hardware-bar">
+                    <button class="phone-nav-btn" id="btnPhoneRecents" title="Recent Apps">
+                        <i class="fa-regular fa-square"></i>
+                    </button>
+                    <button class="phone-nav-btn" id="btnPhoneHome" title="Home">
+                        <i class="fa-regular fa-circle"></i>
+                    </button>
+                    <button class="phone-nav-btn" id="btnPhoneBack" title="Back">
+                        <i class="fa-solid fa-chevron-left"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Coordinate / Resolution Indicator -->
+            <div class="screen-info-footer">
+                <span id="resolutionText">Độ phân giải: 1080 x 2412</span>
+                <span id="coordinateText">Tọa độ: (0, 0)</span>
+            </div>
+        </section>
+
+        <!-- RIGHT: Control Deck -->
+        <aside class="control-deck">
+            <!-- 1. COLOROS DUAL POWER CORE -->
+            <div class="control-card highlight-card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <i class="fa-solid fa-power-off text-emerald"></i>
+                        <h2>Quản Lý Màn Hình OPPO</h2>
+                    </div>
+                    <span class="badge badge-special">ColorOS Anti-Kill</span>
+                </div>
+                <div class="card-body">
+                    <!-- Smart Blackout Mode -->
+                    <div class="action-block">
+                        <div class="block-info">
+                            <strong>Chế độ 1: Tắt Màn Hình Thông Minh (Khuyên dùng)</strong>
+                            <p>Phủ đen AMOLED, hạ 0% độ sáng và tạm dừng render. <strong>Không bao giờ bị ColorOS hủy MediaProjection!</strong></p>
+                        </div>
+                        <div class="dual-buttons">
+                            <button id="btnScreenOffSmart" class="btn-action btn-danger">
+                                <i class="fa-solid fa-moon"></i> Tắt Màn Hình (Smart)
+                            </button>
+                            <button id="btnScreenOnSmart" class="btn-action btn-success">
+                                <i class="fa-solid fa-sun"></i> Bật Màn Hình (Smart)
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="divider"></div>
+
+                    <!-- Hardware Wake & Auto-Unlock -->
+                    <div class="action-block">
+                        <div class="block-info">
+                            <strong>Chế độ 2: Đánh Thức & Tự Động Mở Khóa</strong>
+                            <p>Kích hoạt khi máy bị khóa thật bằng nút nguồn vật lý. Tự động bật màn hình và vuốt nhập PIN.</p>
+                        </div>
+                        <div class="unlock-toolbar">
+                            <input type="password" id="phoneUnlockPin" placeholder="Mã PIN màn hình (vd: 123456)" value="123456">
+                            <button id="btnAutoUnlock" class="btn-action btn-warning">
+                                <i class="fa-solid fa-lock-open"></i> Wake & Auto-Unlock
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. NAVIGATION & GESTURES -->
+            <div class="control-card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <i class="fa-solid fa-compass text-cyan"></i>
+                        <h2>Phím Điều Hướng Hệ Thống</h2>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="nav-grid">
+                        <button class="nav-key" id="btnKeyBack">
+                            <i class="fa-solid fa-arrow-left"></i>
+                            <span>Back (Quay lại)</span>
+                        </button>
+                        <button class="nav-key" id="btnKeyHome">
+                            <i class="fa-solid fa-house"></i>
+                            <span>Home (Trang chính)</span>
+                        </button>
+                        <button class="nav-key" id="btnKeyRecents">
+                            <i class="fa-solid fa-table-cells-large"></i>
+                            <span>Recents (Đa nhiệm)</span>
+                        </button>
+                        <button class="nav-key" id="btnKeyLock">
+                            <i class="fa-solid fa-lock"></i>
+                            <span>Khóa máy thật</span>
+                        </button>
+                    </div>
+
+                    <div class="hardware-row">
+                        <button class="btn-secondary" id="btnVolUp">
+                            <i class="fa-solid fa-volume-high"></i> Tăng âm lượng
+                        </button>
+                        <button class="btn-secondary" id="btnVolDown">
+                            <i class="fa-solid fa-volume-low"></i> Giảm âm lượng
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. STREAM & QUALITY SETTINGS -->
+            <div class="control-card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <i class="fa-solid fa-sliders text-purple"></i>
+                        <h2>Tối Ưu Đường Truyền Mạng</h2>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="slider-group">
+                        <div class="slider-header">
+                            <span>Chất lượng ảnh nén:</span>
+                            <span id="qualityValText" class="value-highlight">60%</span>
+                        </div>
+                        <input type="range" id="qualityRange" min="20" max="80" step="5" value="60">
+                        <div class="slider-hints">
+                            <span>20% (Tiết kiệm data)</span>
+                            <span>60% (Cân bằng)</span>
+                            <span>80% (Siêu nét)</span>
+                        </div>
+                    </div>
+
+                    <div class="telemetry-grid">
+                        <div class="telemetry-item">
+                            <span class="label">Băng thông:</span>
+                            <span class="value" id="dataRateCounter">0 KB/s</span>
+                        </div>
+                        <div class="telemetry-item">
+                            <span class="label">Độ phân giải:</span>
+                            <span class="value" id="resTelemetry">1080x2412</span>
+                        </div>
+                        <div class="telemetry-item">
+                            <span class="label">Thiết bị:</span>
+                            <span class="value" id="deviceModelTelemetry">Chưa kết nối</span>
+                        </div>
+                        <div class="telemetry-item">
+                            <span class="label">Hệ điều hành:</span>
+                            <span class="value" id="androidVerTelemetry">ColorOS 14+</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 4. GUIDE & SHORTCUT TIPS -->
+            <div class="control-card info-card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <i class="fa-solid fa-circle-info text-blue"></i>
+                        <h2>Hướng Dẫn Thao Tác Chuột</h2>
+                    </div>
+                </div>
+                <div class="card-body tips-list">
+                    <div class="tip-item">
+                        <i class="fa-solid fa-hand-pointer"></i>
+                        <span><strong>Click chuột trái:</strong> Chạm đơn (Tap) vào màn hình.</span>
+                    </div>
+                    <div class="tip-item">
+                        <i class="fa-solid fa-arrows-up-down-left-right"></i>
+                        <span><strong>Nhấn giữ & Kéo chuột:</strong> Vuốt mượt (Swipe/Scroll) theo mọi hướng.</span>
+                    </div>
+                    <div class="tip-item">
+                        <i class="fa-solid fa-shield-halved"></i>
+                        <span><strong>ColorOS Tip:</strong> Luôn dùng nút <em>"Tắt Màn Hình (Smart)"</em> khi không dùng để điện thoại tắt đèn LED mà không bị hệ thống hủy phiên quay màn hình.</span>
+                    </div>
+                </div>
+            </div>
+        </aside>
+    </main>
+
+    <!-- Socket.IO Client Script -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
