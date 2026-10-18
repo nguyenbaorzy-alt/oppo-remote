@@ -22,6 +22,39 @@
                 <p>Hệ Thống Điều Khiển Từ Xa OPPO ColorOS</p>
             </div>
 
+            <!-- Network Mode Tabs (Cùng Wi-Fi vs Internet 4G) -->
+            <div class="network-mode-tabs">
+                <button type="button" class="btn-mode-tab active" id="tabModeWifi">
+                    <i class="fa-solid fa-wifi"></i> Cùng Wi-Fi
+                </button>
+                <button type="button" class="btn-mode-tab" id="tabModeInternet">
+                    <i class="fa-solid fa-globe"></i> 4G / Ngoài Đường
+                </button>
+            </div>
+
+            <!-- Wi-Fi Notice Box -->
+            <div id="wifiGateBox" class="wifi-notice-box">
+                <div class="wifi-notice-content">
+                    <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                        <span style="font-size: 0.8rem; font-weight: 700; color: #10b981;">
+                            <i class="fa-solid fa-signal-perfect"></i> Link cùng mạng Wi-Fi:
+                        </span>
+                        <button type="button" id="btnGateShowQr" class="btn-mini-qr" title="Quét mã QR bằng điện thoại">
+                            <i class="fa-solid fa-qrcode"></i> Mã QR
+                        </button>
+                    </div>
+                    <div style="display: flex; gap: 6px; align-items: center; margin-top: 6px; width: 100%;">
+                        <code id="wifiGateUrlText" style="flex: 1; padding: 6px 10px; background: rgba(0,0,0,0.5); border-radius: 6px; color: #34d399; font-size: 0.82rem; font-family: monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">http://192.168.30.102:3000</code>
+                        <button type="button" id="btnGateCopyWifi" class="btn-mini-copy" title="Sao chép link">
+                            <i class="fa-regular fa-copy"></i>
+                        </button>
+                    </div>
+                    <small style="color: #94a3b8; font-size: 0.72rem; margin-top: 4px; display: block;">
+                        * Điện thoại khác chỉ cần kết nối cùng Wi-Fi và vào link trên
+                    </small>
+                </div>
+            </div>
+
             <form id="loginForm" class="login-form" autocomplete="on">
                 <div id="loginErrorMsg" class="login-error-msg hidden">
                     <i class="fa-solid fa-triangle-exclamation"></i>
@@ -66,6 +99,28 @@
         </div>
     </div>
 
+    <!-- MODAL MÃ QR CODE CHO ĐIỆN THOẠI QUÉT KẾT NỐI WI-FI -->
+    <div id="qrModal" class="qr-modal-overlay hidden">
+        <div class="qr-modal-card">
+            <div class="qr-modal-header">
+                <div class="qr-icon-circle">
+                    <i class="fa-solid fa-qrcode"></i>
+                </div>
+                <h3>Quét Mã Bằng Điện Thoại</h3>
+                <p>Mở camera điện thoại khác và quét mã dưới đây để vào trang điều khiển ngay lập tức (Cùng Wi-Fi):</p>
+            </div>
+            <div class="qr-image-wrapper">
+                <img id="qrCodeImg" src="https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=http://192.168.30.102:3000" alt="Mã QR Wi-Fi">
+            </div>
+            <div class="qr-url-badge">
+                <code id="qrUrlDisplay">http://192.168.30.102:3000</code>
+            </div>
+            <button type="button" id="btnCloseQrModal" class="btn-login-submit" style="width: 100%; margin-top: 14px; padding: 12px;">
+                <i class="fa-solid fa-circle-check"></i> Đóng Cửa Sổ
+            </button>
+        </div>
+    </div>
+
     <!-- Header -->
     <header class="top-nav">
         <div class="logo-area">
@@ -91,6 +146,12 @@
             <div class="status-chip server-selector-chip" id="btnChangeServer" style="cursor: pointer;" title="Bấm để xem/đổi địa chỉ máy chủ">
                 <i class="fa-solid fa-cloud text-emerald"></i>
                 <span id="currentServerLabel" style="max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Server</span>
+            </div>
+
+            <!-- Network Mode Chip (Cùng Wi-Fi / 4G) -->
+            <div class="status-chip network-chip" id="networkModeChip" style="cursor: pointer;" title="Chế độ mạng: Cùng Wi-Fi hoặc 4G Ngoài Đường (Bấm để đổi)">
+                <i class="fa-solid fa-wifi text-emerald" id="networkModeIcon"></i>
+                <span id="networkModeLabel">Cùng Wi-Fi</span>
             </div>
 
             <!-- Connection Status -->
@@ -188,6 +249,27 @@
                             <a href="/app-debug.apk" download="OPPO-Remote-Control.apk" class="btn-download-apk" style="display: inline-flex; align-items: center; gap: 8px; margin-bottom: 16px; padding: 10px 18px; background: linear-gradient(135deg, #10b981, #059669); color: #fff; text-decoration: none; border-radius: 8px; font-weight: 700; font-size: 0.9rem; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4);">
                                 <i class="fa-solid fa-download"></i> Tải Về App APK Trực Tiếp
                             </a>
+
+                            <!-- Wi-Fi LAN Quick Connect Card -->
+                            <div class="wifi-lan-card" style="margin-bottom: 14px; padding: 12px 14px; background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 12px; text-align: left; width: 100%; box-sizing: border-box;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                                    <span style="font-size: 0.82rem; font-weight: 700; color: #10b981;">
+                                        <i class="fa-solid fa-wifi"></i> Dùng Chung Mạng Wi-Fi:
+                                    </span>
+                                    <button type="button" id="btnShowQrOverlay" style="background: rgba(16, 185, 129, 0.2); border: 1px solid rgba(16, 185, 129, 0.4); color: #fff; padding: 3px 8px; border-radius: 6px; font-size: 0.72rem; cursor: pointer;">
+                                        <i class="fa-solid fa-qrcode"></i> Quét Mã QR
+                                    </button>
+                                </div>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <code id="wifiLanOverlayText" style="flex: 1; padding: 7px 10px; background: rgba(0, 0, 0, 0.5); border-radius: 6px; color: #34d399; font-size: 0.85rem; font-family: monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">http://192.168.30.102:3000</code>
+                                    <button type="button" id="btnCopyOverlayWifi" style="padding: 7px 12px; background: #10b981; color: #000; border: none; border-radius: 6px; font-weight: 700; font-size: 0.78rem; cursor: pointer; white-space: nowrap;">
+                                        <i class="fa-regular fa-copy"></i> Sao chép
+                                    </button>
+                                </div>
+                                <small style="color: #6ee7b7; font-size: 0.72rem; display: block; margin-top: 5px;">
+                                    * Mở link này trên điện thoại khác cùng bắt Wi-Fi nhà bạn để điều khiển siêu nhanh!
+                                </small>
+                            </div>
 
                             <div class="server-config-box" style="margin-bottom: 14px; text-align: left; width: 100%;">
                                 <label for="serverUrlInput" style="display: block; font-size: 0.8rem; font-weight: 700; color: #94a3b8; margin-bottom: 6px;">

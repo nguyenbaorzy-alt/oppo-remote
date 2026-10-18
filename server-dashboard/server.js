@@ -2,9 +2,25 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
+const os = require('os');
 
 const app = express();
 const server = http.createServer(app);
+
+// Hàm tự động phát hiện địa chỉ IP Wi-Fi nội bộ
+function getLocalLanIp() {
+    try {
+        const interfaces = os.networkInterfaces();
+        for (const name of Object.keys(interfaces)) {
+            for (const iface of interfaces[name]) {
+                if (iface.family === 'IPv4' && !iface.internal) {
+                    return iface.address;
+                }
+            }
+        }
+    } catch (e) {}
+    return '192.168.30.102';
+}
 
 // Cấu hình Socket.IO với các thông số tối ưu truyền tải hình ảnh độ trễ thấp
 const io = new Server(server, {
@@ -81,8 +97,27 @@ app.get('/api/status', (req, res) => {
     });
 });
 
+// API cung cấp thông tin mạng Wi-Fi nội bộ
+app.get('/api/network-info', (req, res) => {
+    const lanIp = getLocalLanIp();
+    res.json({
+        lanIp: lanIp,
+        lanUrl: `http://${lanIp}:${PORT}`,
+        port: PORT,
+        isLocal: req.hostname === 'localhost' || req.hostname === '127.0.0.1' || req.hostname === lanIp
+    });
+});
+
 io.on('connection', (socket) => {
     console.log(`[Socket Connected] ID: ${socket.id} from ${socket.handshake.address}`);
+
+    // Gửi ngay thông tin Wi-Fi nội bộ cho Client
+    const lanIp = getLocalLanIp();
+    socket.emit('network_info', {
+        lanIp: lanIp,
+        lanUrl: `http://${lanIp}:${PORT}`,
+        port: PORT
+    });
 
     let clientType = 'unknown'; // 'device' | 'dashboard'
     let isAuthenticated = false;

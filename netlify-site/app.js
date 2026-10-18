@@ -72,6 +72,28 @@ const loginErrorText = document.getElementById('loginErrorText');
 const userAuthChip = document.getElementById('userAuthChip');
 const userAuthName = document.getElementById('userAuthName');
 
+// Network Mode & QR Elements
+let currentNetworkMode = localStorage.getItem('oppo_network_mode') || 'wifi';
+let localLanUrl = 'http://192.168.30.102:3000';
+let cloudServerUrl = 'https://testimony-destinations-prize-systematic.trycloudflare.com';
+
+const tabModeWifi = document.getElementById('tabModeWifi');
+const tabModeInternet = document.getElementById('tabModeInternet');
+const wifiGateBox = document.getElementById('wifiGateBox');
+const wifiGateUrlText = document.getElementById('wifiGateUrlText');
+const btnGateCopyWifi = document.getElementById('btnGateCopyWifi');
+const btnGateShowQr = document.getElementById('btnGateShowQr');
+const wifiLanOverlayText = document.getElementById('wifiLanOverlayText');
+const btnCopyOverlayWifi = document.getElementById('btnCopyOverlayWifi');
+const btnShowQrOverlay = document.getElementById('btnShowQrOverlay');
+const networkModeChip = document.getElementById('networkModeChip');
+const networkModeIcon = document.getElementById('networkModeIcon');
+const networkModeLabel = document.getElementById('networkModeLabel');
+const qrModal = document.getElementById('qrModal');
+const qrCodeImg = document.getElementById('qrCodeImg');
+const qrUrlDisplay = document.getElementById('qrUrlDisplay');
+const btnCloseQrModal = document.getElementById('btnCloseQrModal');
+
 // Buttons
 const btnScreenOffSmart = document.getElementById('btnScreenOffSmart');
 const btnScreenOnSmart = document.getElementById('btnScreenOnSmart');
@@ -431,6 +453,18 @@ function initSocket() {
         }
     });
 
+    socket.on('network_info', (data) => {
+        if (data && data.lanUrl) {
+            localLanUrl = data.lanUrl;
+            if (wifiGateUrlText) wifiGateUrlText.textContent = localLanUrl;
+            if (wifiLanOverlayText) wifiLanOverlayText.textContent = localLanUrl;
+            if (qrUrlDisplay) qrUrlDisplay.textContent = localLanUrl;
+            if (qrCodeImg) {
+                qrCodeImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(localLanUrl)}`;
+            }
+        }
+    });
+
     const deviceSelectDropdown = document.getElementById('deviceSelectDropdown');
     if (deviceSelectDropdown) {
         deviceSelectDropdown.addEventListener('change', (e) => {
@@ -575,6 +609,63 @@ function showLoginError(msg) {
             card.style.animation = 'loginShake 0.4s ease-in-out';
         }
     }
+}
+
+function setNetworkMode(mode) {
+    currentNetworkMode = mode;
+    localStorage.setItem('oppo_network_mode', mode);
+
+    if (mode === 'wifi') {
+        if (tabModeWifi) tabModeWifi.classList.add('active');
+        if (tabModeInternet) tabModeInternet.classList.remove('active');
+        if (wifiGateBox) wifiGateBox.classList.remove('hidden');
+
+        if (networkModeIcon) networkModeIcon.className = 'fa-solid fa-wifi text-emerald';
+        if (networkModeLabel) networkModeLabel.textContent = 'Cùng Wi-Fi';
+        if (networkModeChip) networkModeChip.classList.remove('cloud-mode');
+
+        const serverInput = document.getElementById('serverUrlInput');
+        if (serverInput) serverInput.value = localLanUrl;
+        localStorage.setItem('oppo_relay_server_url', localLanUrl);
+    } else {
+        if (tabModeWifi) tabModeWifi.classList.remove('active');
+        if (tabModeInternet) tabModeInternet.classList.add('active');
+        if (wifiGateBox) wifiGateBox.classList.add('hidden');
+
+        if (networkModeIcon) networkModeIcon.className = 'fa-solid fa-globe text-cyan';
+        if (networkModeLabel) networkModeLabel.textContent = '4G / Internet';
+        if (networkModeChip) networkModeChip.classList.add('cloud-mode');
+
+        const serverInput = document.getElementById('serverUrlInput');
+        if (serverInput) serverInput.value = cloudServerUrl;
+        localStorage.setItem('oppo_relay_server_url', cloudServerUrl);
+    }
+}
+
+function openQrModal(url) {
+    const targetUrl = url || localLanUrl;
+    if (qrUrlDisplay) qrUrlDisplay.textContent = targetUrl;
+    if (qrCodeImg) {
+        qrCodeImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(targetUrl)}`;
+    }
+    if (qrModal) qrModal.classList.remove('hidden');
+}
+
+function closeQrModal() {
+    if (qrModal) qrModal.classList.add('hidden');
+}
+
+function copyToClipboard(text, btn) {
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+        if (btn) {
+            const orig = btn.innerHTML;
+            btn.innerHTML = '<i class="fa-solid fa-check"></i> Đã chép!';
+            setTimeout(() => { btn.innerHTML = orig; }, 2000);
+        }
+    }).catch(() => {
+        prompt('Sao chép đường dẫn này:', text);
+    });
 }
 
 function authenticate() {
@@ -1225,6 +1316,30 @@ if (userAuthChip) {
         }
     });
 }
+
+// Network Mode Switcher Handlers
+if (tabModeWifi) tabModeWifi.addEventListener('click', () => setNetworkMode('wifi'));
+if (tabModeInternet) tabModeInternet.addEventListener('click', () => setNetworkMode('internet'));
+if (networkModeChip) networkModeChip.addEventListener('click', () => {
+    setNetworkMode(currentNetworkMode === 'wifi' ? 'internet' : 'wifi');
+});
+
+// QR Code Modal Handlers
+if (btnGateShowQr) btnGateShowQr.addEventListener('click', () => openQrModal(localLanUrl));
+if (btnShowQrOverlay) btnShowQrOverlay.addEventListener('click', () => openQrModal(localLanUrl));
+if (btnCloseQrModal) btnCloseQrModal.addEventListener('click', closeQrModal);
+if (qrModal) {
+    qrModal.addEventListener('click', (e) => {
+        if (e.target === qrModal) closeQrModal();
+    });
+}
+
+// Copy Wi-Fi link buttons
+if (btnGateCopyWifi) btnGateCopyWifi.addEventListener('click', () => copyToClipboard(localLanUrl, btnGateCopyWifi));
+if (btnCopyOverlayWifi) btnCopyOverlayWifi.addEventListener('click', () => copyToClipboard(localLanUrl, btnCopyOverlayWifi));
+
+// Khởi tạo chế độ mạng theo đã lưu
+setNetworkMode(currentNetworkMode);
 
 const btnChangeServer = document.getElementById('btnChangeServer');
 if (btnChangeServer) {
