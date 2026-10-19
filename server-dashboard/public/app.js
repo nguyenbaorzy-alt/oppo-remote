@@ -1001,6 +1001,7 @@ screenViewport.addEventListener('touchcancel', handleTouchCancel, { passive: fal
 
 // Desktop Mouse Event Handlers with Real-Time Follow-Through
 screenViewport.addEventListener('mousedown', (e) => {
+    screenViewport.focus();
     if (performance.now() - lastTouchEndTime < 400) return;
     if (!isDeviceOnline || isBlackoutActive) return;
     if (e.button !== 0) return;
@@ -1097,9 +1098,57 @@ screenViewport.addEventListener('wheel', (e) => {
     }
 }, { passive: false });
 
-// 2. TÍNH NĂNG GÕ BÀN PHÍM MÁY TÍNH TRỰC TIẾP TRÊN MÀN HÌNH ĐIỆN THOẠI
-screenViewport.addEventListener('keydown', (e) => {
+// 2. TÍNH NĂNG ĐIỀU KHIỂN BÀN PHÍM CHUẨN GIẢ LẬP (LDPLAYER / NOX / BLUESTACKS)
+window.addEventListener('keydown', (e) => {
     if (!isDeviceOnline || isBlackoutActive) return;
+
+    // Bỏ qua nếu đang nhập liệu trong ô input / textarea khác
+    if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA' || document.activeElement.isContentEditable)) {
+        return;
+    }
+
+    // 1. Phím tắt hệ thống Giả lập (Hoạt động ở mọi chế độ)
+    if (e.key === 'Escape') {
+        e.preventDefault();
+        sendKeyEvent('BACK');
+        showInputToast('🔙 Phím Esc: Quay lại (Back)');
+        return;
+    }
+    if (e.key === 'Home' || e.key === 'F1') {
+        e.preventDefault();
+        sendKeyEvent('HOME');
+        showInputToast('🏠 Phím Home: Về Trang Chính');
+        return;
+    }
+    if (e.key === 'F2' || (isEmulatorMode && e.key === 'Tab')) {
+        e.preventDefault();
+        triggerRecents();
+        return;
+    }
+    if (e.key === 'F3') {
+        e.preventDefault();
+        sendKeyEvent('VOLUME_DOWN');
+        showInputToast('🔉 Giảm âm lượng');
+        return;
+    }
+    if (e.key === 'F4') {
+        e.preventDefault();
+        sendKeyEvent('VOLUME_UP');
+        showInputToast('🔊 Tăng âm lượng');
+        return;
+    }
+    if (e.key === 'F8') {
+        e.preventDefault();
+        sendKeyEvent('LOCK');
+        showInputToast('🔒 Khóa / Bật màn hình');
+        return;
+    }
+
+    // 4 Phím Mũi Tên -> Vuốt màn hình nhanh 4 hướng
+    if (e.key === 'ArrowUp') { e.preventDefault(); quickSwipe('UP'); return; }
+    if (e.key === 'ArrowDown') { e.preventDefault(); quickSwipe('DOWN'); return; }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); quickSwipe('LEFT'); return; }
+    if (e.key === 'ArrowRight') { e.preventDefault(); quickSwipe('RIGHT'); return; }
 
     // Ctrl+V hoặc Cmd+V -> Dán Clipboard từ PC vào điện thoại
     if ((e.ctrlKey || e.metaKey) && (e.key === 'v' || e.key === 'V')) {
@@ -1122,13 +1171,28 @@ screenViewport.addEventListener('keydown', (e) => {
         return;
     }
 
-    // Tab -> Bỏ qua mặc định trình duyệt
-    if (e.key === 'Tab') {
-        e.preventDefault();
-        return;
+    // 2. Chế độ Giả Lập (Emulator Mode)
+    if (isEmulatorMode) {
+        const keyLower = e.key.toLowerCase();
+
+        // Cụm phím WASD di chuyển 4 hướng
+        if (keyLower === 'w') { e.preventDefault(); quickSwipe('UP'); highlightKeyBadge('w'); return; }
+        if (keyLower === 's') { e.preventDefault(); quickSwipe('DOWN'); highlightKeyBadge('s'); return; }
+        if (keyLower === 'a') { e.preventDefault(); quickSwipe('LEFT'); highlightKeyBadge('a'); return; }
+        if (keyLower === 'd') { e.preventDefault(); quickSwipe('RIGHT'); highlightKeyBadge('d'); return; }
+
+        // Kiểm tra các phím gán tùy chỉnh (Space, Q, E, R, F, 1, 2, C, Z...)
+        if (typeof mappedKeys !== 'undefined' && Array.isArray(mappedKeys)) {
+            const found = mappedKeys.find(k => k.key.toLowerCase() === keyLower);
+            if (found) {
+                e.preventDefault();
+                triggerMappedKey(found);
+                return;
+            }
+        }
     }
 
-    // Ký tự thông thường (chữ cái, chữ số, dấu câu)
+    // 3. Chế độ Gõ chữ thông thường (khi tắt giả lập)
     if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
         e.preventDefault();
         sendInputText(e.key, 'append');
@@ -1578,8 +1642,223 @@ qualityRange.addEventListener('input', (e) => {
     }
 });
 
-// Prevent context menu on phone canvas
-canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+// ==========================================================================
+// CHẾ ĐỘ ĐIỀU KHIỂN GIẢ LẬP CHUYÊN NGHIỆP (LDPLAYER / NOX / BLUESTACKS STYLE)
+// ==========================================================================
+
+let isEmulatorMode = localStorage.getItem('oppo_emulator_mode') !== 'false'; // Bật mặc định
+let isMappingModeActive = false;
+let keymapOpacity = parseInt(localStorage.getItem('oppo_keymap_opacity') || '85');
+
+// Danh sách phím gán mặc định (SPACE hành động, F tương tác, Q chiêu 1, E chiêu 2)
+let defaultKeymaps = [
+    { id: 'key_space', key: ' ', label: 'SPACE', relX: 0.5, relY: 0.82 },
+    { id: 'key_f', key: 'f', label: 'F', relX: 0.82, relY: 0.70 },
+    { id: 'key_q', key: 'q', label: 'Q', relX: 0.18, relY: 0.45 },
+    { id: 'key_e', key: 'e', label: 'E', relX: 0.82, relY: 0.45 }
+];
+
+let mappedKeys = JSON.parse(localStorage.getItem('oppo_keymappings') || 'null') || defaultKeymaps;
+
+const keymappingOverlay = document.getElementById('keymappingOverlay');
+const btnToggleEmulatorMode = document.getElementById('btnToggleEmulatorMode');
+const btnSwitchEmulatorMode = document.getElementById('btnSwitchEmulatorMode');
+const badgeEmulatorState = document.getElementById('badgeEmulatorState');
+const btnAddKeymapPoint = document.getElementById('btnAddKeymapPoint');
+const btnClearAllKeymaps = document.getElementById('btnClearAllKeymaps');
+const keymapOpacitySlider = document.getElementById('keymapOpacitySlider');
+
+function updateEmulatorModeUI() {
+    if (btnToggleEmulatorMode) {
+        btnToggleEmulatorMode.classList.toggle('active', isEmulatorMode);
+        btnToggleEmulatorMode.title = isEmulatorMode 
+            ? 'Đang bật Chế độ Giả Lập (Chuột phải Back, WASD di chuyển, Gán phím) - Bấm để chuyển sang chế độ gõ chữ'
+            : 'Đang bật Chế độ Gõ chữ - Bấm để bật Chế độ Giả Lập (Game)';
+    }
+    if (btnSwitchEmulatorMode) {
+        btnSwitchEmulatorMode.className = isEmulatorMode ? 'btn-action btn-success' : 'btn-action btn-secondary';
+        btnSwitchEmulatorMode.innerHTML = isEmulatorMode 
+            ? '<i class="fa-solid fa-gamepad"></i> Đang Bật (Giả Lập)' 
+            : '<i class="fa-solid fa-power-off"></i> Đang Tắt (Gõ Chữ)';
+    }
+    if (badgeEmulatorState) {
+        badgeEmulatorState.textContent = isEmulatorMode ? '🎮 Giả Lập Bật' : '⌨️ Chế độ Gõ Chữ';
+        badgeEmulatorState.style.color = isEmulatorMode ? 'var(--color-emerald)' : 'var(--color-cyan)';
+    }
+    if (keymappingOverlay) {
+        keymappingOverlay.style.display = isEmulatorMode ? 'block' : 'none';
+        keymappingOverlay.style.opacity = (keymapOpacity / 100).toString();
+    }
+}
+
+function setEmulatorMode(enable) {
+    isEmulatorMode = enable;
+    localStorage.setItem('oppo_emulator_mode', isEmulatorMode ? 'true' : 'false');
+    updateEmulatorModeUI();
+    showInputToast(isEmulatorMode ? '🎮 Đã BẬT Chế Độ Giả Lập (Chuột phải Back, WASD di chuyển)' : '⌨️ Đã chuyển sang Chế Độ Gõ Chữ');
+}
+
+if (btnToggleEmulatorMode) {
+    btnToggleEmulatorMode.addEventListener('click', () => setEmulatorMode(!isEmulatorMode));
+}
+if (btnSwitchEmulatorMode) {
+    btnSwitchEmulatorMode.addEventListener('click', () => setEmulatorMode(!isEmulatorMode));
+}
+
+function renderKeymappingOverlay() {
+    if (!keymappingOverlay) return;
+    keymappingOverlay.innerHTML = '';
+
+    mappedKeys.forEach((km) => {
+        const badge = document.createElement('div');
+        badge.className = 'key-badge';
+        badge.id = `badge_${km.id}`;
+        badge.style.left = `${km.relX * 100}%`;
+        badge.style.top = `${km.relY * 100}%`;
+        badge.dataset.key = km.key.toLowerCase();
+
+        const label = document.createElement('span');
+        label.textContent = km.label || km.key.toUpperCase();
+        badge.appendChild(label);
+
+        const delBtn = document.createElement('span');
+        delBtn.className = 'btn-del-key';
+        delBtn.textContent = '×';
+        delBtn.title = 'Xóa phím gán này';
+        delBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            removeKeymap(km.id);
+        });
+        badge.appendChild(delBtn);
+
+        // Bấm trực tiếp vào nút tròn trên web để kích hoạt
+        badge.addEventListener('mousedown', (e) => {
+            if (isMappingModeActive) return;
+            e.stopPropagation();
+            triggerMappedKey(km);
+        });
+
+        keymappingOverlay.appendChild(badge);
+    });
+}
+
+function highlightKeyBadge(keyChar) {
+    const char = keyChar.toLowerCase();
+    const badges = keymappingOverlay ? keymappingOverlay.querySelectorAll('.key-badge') : [];
+    badges.forEach(b => {
+        if (b.dataset.key === char) {
+            b.classList.add('active');
+            setTimeout(() => b.classList.remove('active'), 120);
+        }
+    });
+}
+
+function triggerMappedKey(km) {
+    const devW = (actualDeviceDisplay && actualDeviceDisplay.width > 0) ? actualDeviceDisplay.width : (phoneResolution.width || 1080);
+    const devH = (actualDeviceDisplay && actualDeviceDisplay.height > 0) ? actualDeviceDisplay.height : (phoneResolution.height || 2400);
+
+    const targetX = Math.round(km.relX * devW);
+    const targetY = Math.round(km.relY * devH);
+
+    console.log(`[Keymap Action] Key ${km.label} at (${targetX}, ${targetY})`);
+    sendTouchTap(targetX, targetY);
+    showTouchRipple(km.relX * screenViewport.clientWidth, km.relY * screenViewport.clientHeight);
+    highlightKeyBadge(km.key);
+}
+
+function removeKeymap(id) {
+    mappedKeys = mappedKeys.filter(k => k.id !== id);
+    localStorage.setItem('oppo_keymappings', JSON.stringify(mappedKeys));
+    renderKeymappingOverlay();
+    showInputToast('🗑️ Đã xóa phím gán');
+}
+
+if (btnAddKeymapPoint) {
+    btnAddKeymapPoint.addEventListener('click', () => {
+        isMappingModeActive = true;
+        if (keymappingOverlay) keymappingOverlay.classList.add('mapping-active');
+        showInputToast('👉 Nhấp chuột vào điểm bất kỳ trên màn hình điện thoại để đặt phím!');
+    });
+}
+
+if (btnClearAllKeymaps) {
+    btnClearAllKeymaps.addEventListener('click', () => {
+        if (confirm('Bạn có chắc muốn xóa tất cả các phím gán hiện tại không?')) {
+            mappedKeys = [];
+            localStorage.setItem('oppo_keymappings', JSON.stringify(mappedKeys));
+            renderKeymappingOverlay();
+            showInputToast('🗑️ Đã xóa hết phím gán');
+        }
+    });
+}
+
+if (keymapOpacitySlider) {
+    keymapOpacitySlider.addEventListener('input', (e) => {
+        keymapOpacity = parseInt(e.target.value);
+        localStorage.setItem('oppo_keymap_opacity', keymapOpacity.toString());
+        if (keymappingOverlay) {
+            keymappingOverlay.style.opacity = (keymapOpacity / 100).toString();
+        }
+    });
+}
+
+// Bắt click trên screenViewport khi đang ở chế độ gán phím
+screenViewport.addEventListener('click', (e) => {
+    if (!isMappingModeActive) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    const rect = screenViewport.getBoundingClientRect();
+    const relX = Math.max(0.05, Math.min(0.95, (e.clientX - rect.left) / rect.width));
+    const relY = Math.max(0.05, Math.min(0.95, (e.clientY - rect.top) / rect.height));
+
+    const enteredKey = prompt('Nhập ký tự phím bạn muốn gán cho vị trí này (vd: Space, F, Q, E, R, 1, 2, C, Z...):', 'F');
+    if (enteredKey && (enteredKey.trim() || enteredKey === ' ')) {
+        const keyVal = enteredKey.trim() || ' ';
+        const cleanKey = (keyVal.toLowerCase() === 'space' || keyVal === ' ') ? ' ' : keyVal.slice(0, 5);
+        const label = cleanKey === ' ' ? 'SPACE' : cleanKey.toUpperCase();
+
+        mappedKeys.push({
+            id: 'km_' + Date.now(),
+            key: cleanKey,
+            label: label,
+            relX: parseFloat(relX.toFixed(3)),
+            relY: parseFloat(relY.toFixed(3))
+        });
+
+        localStorage.setItem('oppo_keymappings', JSON.stringify(mappedKeys));
+        renderKeymappingOverlay();
+        showInputToast(`✅ Đã gán phím [${label}] thành công!`);
+    }
+
+    isMappingModeActive = false;
+    if (keymappingOverlay) keymappingOverlay.classList.remove('mapping-active');
+});
+
+// 1. CHUỘT PHẢI (Right Click) = Phím BACK (Quay lại chuẩn Giả lập Scrcpy/Nox)
+screenViewport.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    if (!isDeviceOnline || isBlackoutActive) return;
+    if (isMappingModeActive) return;
+    console.log('[Mouse Right Click] -> Back');
+    sendKeyEvent('BACK');
+    showInputToast('🔙 Chuột phải: Quay lại (Back)');
+});
+
+// 2. CHUỘT GIỮA (Middle Click) = Phím HOME (Về màn hình chính)
+screenViewport.addEventListener('auxclick', (e) => {
+    if (e.button === 1) { // Chuột giữa
+        e.preventDefault();
+        if (!isDeviceOnline || isBlackoutActive) return;
+        console.log('[Mouse Middle Click] -> Home');
+        sendKeyEvent('HOME');
+        showInputToast('🏠 Chuột giữa: Về Trang Chủ (Home)');
+    }
+});
+
+// Khởi chạy giao diện phím giả lập
+updateEmulatorModeUI();
+renderKeymappingOverlay();
 
 // Start Socket.IO
 initSocket();

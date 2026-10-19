@@ -196,6 +196,9 @@
                 </div>
 
                 <div class="toolbar-right">
+                    <button class="btn-tool-action btn-emulator-toggle" id="btnToggleEmulatorMode" title="Bật/Tắt chế độ điều khiển Giả Lập (Chuột phải Back, WASD di chuyển, Gán phím chơi game)">
+                        <i class="fa-solid fa-gamepad"></i> <span class="tool-btn-text">Giả Lập</span>
+                    </button>
                     <button class="btn-tool-action" id="btnToggleFrameless" title="Ẩn viền điện thoại để màn hình to và rộng hơn">
                         <i class="fa-solid fa-border-none"></i> <span class="tool-btn-text">Tràn Viền</span>
                     </button>
@@ -217,6 +220,9 @@
                 <div class="screen-viewport" id="screenViewport" tabindex="0" title="Nhấp vào đây để gõ phím hoặc cuộn chuột">
                     <canvas id="screenCanvas"></canvas>
                     
+                    <!-- Keymapping Overlay (Các nút phím ảo giả lập trên màn hình) -->
+                    <div id="keymappingOverlay" class="keymapping-overlay"></div>
+
                     <!-- Floating Exit Fullscreen Button -->
                     <button id="btnExitFullscreen" class="btn-exit-fullscreen hidden" title="Thoát toàn màn hình (ESC)">
                         <i class="fa-solid fa-compress"></i> Thoát Toàn Màn Hình (ESC)
@@ -417,6 +423,77 @@
                         <small style="color: var(--text-muted); font-size: 0.78rem; display: block; margin-top: 4px;">
                             💡 <em>Hoặc nhấp chuột vào màn hình điện thoại bên trái rồi gõ bàn phím máy tính trực tiếp!</em>
                         </small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2.5 CHẾ ĐỘ GIẢ LẬP & GÁN PHÍM CHƠI GAME (EMULATOR CONTROLS) -->
+            <div class="control-card highlight-card" style="border-color: rgba(16, 185, 129, 0.4);">
+                <div class="card-header">
+                    <div class="card-title">
+                        <i class="fa-solid fa-gamepad text-emerald"></i>
+                        <h2>Điều Khiển Giả Lập &amp; Gán Phím</h2>
+                    </div>
+                    <span id="badgeEmulatorState" class="badge" style="background: rgba(16, 185, 129, 0.15); color: var(--color-emerald); border: 1px solid rgba(16, 185, 129, 0.3);">Chuẩn LDPlayer / Nox</span>
+                </div>
+                <div class="card-body">
+                    <!-- Toggle Switch -->
+                    <div class="action-block" style="display: flex; justify-content: space-between; align-items: center; background: rgba(255, 255, 255, 0.03); padding: 10px 12px; border-radius: 8px;">
+                        <div>
+                            <strong style="color: #fff; font-size: 0.88rem;">Chế Độ Giả Lập (Emulator Mode)</strong>
+                            <p style="font-size: 0.75rem; color: var(--text-muted); margin: 2px 0 0 0;">Chuột phải Back, WASD di chuyển, Phím tắt nhanh</p>
+                        </div>
+                        <button type="button" id="btnSwitchEmulatorMode" class="btn-action btn-success" style="padding: 6px 14px; font-weight: 700; font-size: 0.82rem;">
+                            <i class="fa-solid fa-power-off"></i> Bật Giả Lập
+                        </button>
+                    </div>
+
+                    <!-- Shortcut Guide Table -->
+                    <div style="margin-top: 10px;">
+                        <table class="keymap-hotkey-table">
+                            <tr>
+                                <td><kbd>Chuột phải</kbd> hoặc <kbd>Esc</kbd></td>
+                                <td style="text-align: right; color: #34d399; font-weight: 600;">Quay lại (Back)</td>
+                            </tr>
+                            <tr>
+                                <td><kbd>Chuột giữa</kbd> hoặc <kbd>Home</kbd></td>
+                                <td style="text-align: right; color: #38bdf8; font-weight: 600;">Về Trang Chủ (Home)</td>
+                            </tr>
+                            <tr>
+                                <td><kbd>Tab</kbd> hoặc <kbd>F2</kbd></td>
+                                <td style="text-align: right; color: #fbbf24; font-weight: 600;">Đa nhiệm (Recents)</td>
+                            </tr>
+                            <tr>
+                                <td><kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd></td>
+                                <td style="text-align: right; color: #a78bfa; font-weight: 600;">Vuốt 4 hướng / Di chuyển</td>
+                            </tr>
+                            <tr>
+                                <td><kbd>Con lăn chuột</kbd></td>
+                                <td style="text-align: right; color: #38bdf8;">Cuộn lướt trang mượt mà</td>
+                            </tr>
+                        </table>
+                    </div>
+
+                    <div class="divider"></div>
+
+                    <!-- Keymapping Tool -->
+                    <div class="action-block">
+                        <div class="block-info">
+                            <strong>Gán Phím Game Màn Hình (On-Screen Keymapping):</strong>
+                            <p>Bấm nút bên dưới rồi nhấp vào bất kỳ điểm nào trên màn hình điện thoại để đặt phím tắt!</p>
+                        </div>
+                        <div class="dual-buttons">
+                            <button type="button" id="btnAddKeymapPoint" class="btn-action btn-secondary" style="border-color: #06b6d4; color: #38bdf8;">
+                                <i class="fa-solid fa-plus-circle"></i> + Thêm Phím Gán
+                            </button>
+                            <button type="button" id="btnClearAllKeymaps" class="btn-action btn-secondary" style="color: #ef4444;">
+                                <i class="fa-solid fa-trash-can"></i> Xóa Hết Phím
+                            </button>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
+                            <span style="font-size: 0.78rem; color: var(--text-muted);">Độ mờ nút phím ảo:</span>
+                            <input type="range" id="keymapOpacitySlider" min="0" max="100" value="85" style="width: 120px;" title="Chỉnh độ trong suốt của các nút phím gán">
+                        </div>
                     </div>
                 </div>
             </div>
