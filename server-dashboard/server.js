@@ -22,10 +22,10 @@ function getLocalLanIp() {
     return '192.168.30.102';
 }
 
-// Cấu hình Socket.IO với các thông số tối ưu truyền tải hình ảnh độ trễ thấp
+// Cấu hình Socket.IO với các thông số tối ưu truyền tải hình ảnh độ trễ thấp & chống rớt mạng đám mây
 const io = new Server(server, {
-    pingInterval: 10000,
-    pingTimeout: 5000,
+    pingInterval: 15000,
+    pingTimeout: 30000, // 30s timeout để chống ngắt kết nối khi chuyển app/đa nhiệm trên điện thoại
     maxHttpBufferSize: 1e7, // 10MB cho phép frame ảnh chất lượng cao
     cors: {
         origin: '*',
@@ -333,15 +333,20 @@ io.on('connection', (socket) => {
     });
 
     // Xử lý ngắt kết nối
-    socket.on('disconnect', () => {
+    socket.on('disconnect', (reason) => {
         if (clientType === 'device') {
-            console.log(`<<< [Device Disconnected] ID: ${socket.id}`);
-            connectedDevices.delete(socket.id);
-            if (activeDeviceId === socket.id) {
-                const nextDev = getActiveDevice();
-                activeDeviceId = nextDev ? nextDev.socket.id : null;
-            }
-            broadcastDeviceList();
+            console.log(`<<< [Device Disconnected] ID: ${socket.id}, reason: ${reason}`);
+            // Đặt thời gian ân hạn 4s để điện thoại tự động reconnect (khi đổi app/đa nhiệm) mà không làm đen màn hình Web
+            setTimeout(() => {
+                if (connectedDevices.has(socket.id) && !connectedDevices.get(socket.id).socket.connected) {
+                    connectedDevices.delete(socket.id);
+                    if (activeDeviceId === socket.id) {
+                        const nextDev = getActiveDevice();
+                        activeDeviceId = nextDev ? nextDev.socket.id : null;
+                    }
+                    broadcastDeviceList();
+                }
+            }, 4000);
         } else if (clientType === 'dashboard') {
             dashboardSockets.delete(socket);
             console.log(`[Dashboard Disconnected] Remaining: ${dashboardSockets.size}`);

@@ -377,6 +377,18 @@ class CoreKeepAliveService : Service() {
     // 3. MEDIA PROJECTION & VIRTUAL DISPLAY
     // =========================================================================
 
+    /**
+     * Tính toán độ phân giải tối ưu cho stream để giảm tải RAM (từ 17.5MB xuống ~3MB),
+     * chống tràn bộ đệm mạng và ngăn ngừa giật lag, đứt kết nối khi mở Đa nhiệm.
+     */
+    private fun getOptimizedStreamDimensions(width: Int, height: Int): Pair<Int, Int> {
+        val maxDim = maxOf(width, height)
+        val scale = if (maxDim > 1280) 1280.0f / maxDim else 1.0f
+        val streamW = (((width * scale).toInt() / 2) * 2).coerceAtLeast(320)
+        val streamH = (((height * scale).toInt() / 2) * 2).coerceAtLeast(320)
+        return Pair(streamW, streamH)
+    }
+
     private fun setupMediaProjection(resultCode: Int, resultData: Intent) {
         val wm = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         val metrics = DisplayMetrics()
@@ -398,19 +410,30 @@ class CoreKeepAliveService : Service() {
             override fun onStop() {
                 super.onStop()
                 Log.w(TAG, "MediaProjection was stopped by system")
+                serviceScope.launch {
+                    try {
+                        val statusObj = JSONObject().apply {
+                            put("mediaProjectionStopped", true)
+                        }
+                        socket?.emit("device_status_update", statusObj)
+                    } catch (_: Exception) {}
+                }
             }
         }
 
         mediaProjection = mediaProjectionManager?.getMediaProjection(resultCode, resultData)
         mediaProjection?.registerCallback(projectionCallback, null)
 
+        val (streamW, streamH) = getOptimizedStreamDimensions(screenWidth, screenHeight)
+        val streamDensity = (screenDensity * (streamW.toFloat() / screenWidth)).toInt().coerceAtLeast(160)
+
         synchronized(streamLock) {
-            imageReader = ImageReader.newInstance(screenWidth, screenHeight, PixelFormat.RGBA_8888, 2)
+            imageReader = ImageReader.newInstance(streamW, streamH, PixelFormat.RGBA_8888, 2)
             virtualDisplay = mediaProjection?.createVirtualDisplay(
                 "OPPO_REMOTE_DISPLAY",
-                screenWidth,
-                screenHeight,
-                screenDensity,
+                streamW,
+                streamH,
+                streamDensity,
                 DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
                 imageReader?.surface,
                 null,
@@ -418,7 +441,7 @@ class CoreKeepAliveService : Service() {
             )
         }
 
-        Log.i(TAG, "VirtualDisplay created successfully")
+        Log.i(TAG, "VirtualDisplay created successfully (${streamW}x${streamH} for physical ${screenWidth}x${screenHeight})")
     }
 
     private fun releaseMediaProjection() {
@@ -438,8 +461,8 @@ class CoreKeepAliveService : Service() {
     }
 
     /**
-     * Khắc phục hiện tượng đen màn hình khi bật lại màn hình vật lý:
-     * Hủy bỏ VirtualDisplay cũ và tạo mới lại từ MediaProjection & ImageReader
+     * Khắc phục hiện tượng đen màn hình khi bật lại màn hình vật lý hoặc mở Đa nhiệm:
+     * Hủy bỏ VirtualDisplay cũ và tạo mới lại hoàn toàn từ MediaProjection & ImageReader
      */
     fun refreshStream() {
         synchronized(streamLock) {
@@ -453,21 +476,27 @@ class CoreKeepAliveService : Service() {
                 try {
                     imageReader?.close()
                 } catch (_: Exception) {}
-                imageReader = ImageReader.newInstance(screenWidth, screenHeight, PixelFormat.RGBA_8888, 2)
+                imageReader = null
+
+                val (streamW, streamH) = getOptimizedStreamDimensions(screenWidth, screenHeight)
+                val streamDensity = (screenDensity * (streamW.toFloat() / screenWidth)).toInt().coerceAtLeast(160)
+
+                val newReader = ImageReader.newInstance(streamW, streamH, PixelFormat.RGBA_8888, 2)
+                imageReader = newReader
 
                 val mp = mediaProjection
                 if (mp != null) {
                     virtualDisplay = mp.createVirtualDisplay(
                         "OPPO_REMOTE_DISPLAY",
-                        screenWidth,
-                        screenHeight,
-                        screenDensity,
+                        streamW,
+                        streamH,
+                        streamDensity,
                         DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
-                        imageReader?.surface,
+                        newReader.surface,
                         null,
                         null
                     )
-                    Log.i(TAG, ">>> [refreshStream] VirtualDisplay successfully recreated!")
+                    Log.i(TAG, ">>> [refreshStream] VirtualDisplay successfully recreated! (${streamW}x${streamH})")
                 } else {
                     Log.w(TAG, ">>> [refreshStream] MediaProjection is null")
                 }
@@ -518,28 +547,33 @@ class CoreKeepAliveService : Service() {
             screenHeight = targetHeight
 
             try {
-                val newReader = ImageReader.newInstance(screenWidth, screenHeight, PixelFormat.RGBA_8888, 2)
-                if (virtualDisplay != null) {
-                    virtualDisplay?.setSurface(newReader.surface)
-                    virtualDisplay?.resize(screenWidth, screenHeight, screenDensity)
-                } else {
-                    virtualDisplay = mediaProjection?.createVirtualDisplay(
-                        "OPPO_REMOTE_DISPLAY",
-                        screenWidth,
-                        screenHeight,
-                        screenDensity,
-                        DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
-                        newReader.surface,
-                        null,
-                        null
-                    )
-                }
+                val (streamW, streamH) = getOptimizedStreamDimensions(screenWidth, screenHeight)
+                val streamDensity = (screenDensity * (streamW.toFloat() / screenWidth)).toInt().coerceAtLeast(160)
+
+                val newReader = ImageReader.newInstance(streamW, streamH, PixelFormat.RGBA_8888, 2)
+
+                try {
+                    virtualDisplay?.release()
+                } catch (_: Exception) {}
+                virtualDisplay = null
+
+                virtualDisplay = mediaProjection?.createVirtualDisplay(
+                    "OPPO_REMOTE_DISPLAY",
+                    streamW,
+                    streamH,
+                    streamDensity,
+                    DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+                    newReader.surface,
+                    null,
+                    null
+                )
+
                 val oldReader = imageReader
                 imageReader = newReader
                 try {
                     oldReader?.close()
                 } catch (_: Exception) {}
-                Log.i(TAG, ">>> VirtualDisplay resized to ${screenWidth}x${screenHeight} and new ImageReader attached!")
+                Log.i(TAG, ">>> VirtualDisplay cleanly recreated for orientation change: ${streamW}x${streamH} (physical: ${screenWidth}x${screenHeight})")
             } catch (e: Exception) {
                 Log.e(TAG, "Error updating VirtualDisplay for orientation change", e)
             }
@@ -612,49 +646,53 @@ class CoreKeepAliveService : Service() {
 
                 val image = try {
                     reader.acquireLatestImage()
-                } catch (e: Exception) {
+                } catch (_: Throwable) {
                     null
                 }
 
                 if (image != null) {
                     try {
-                        val imgWidth = image.width
-                        val imgHeight = image.height
                         val planes = image.planes
-                        val buffer = planes[0].buffer
-                        val pixelStride = planes[0].pixelStride
-                        val rowStride = planes[0].rowStride
-                        val rowPadding = rowStride - pixelStride * imgWidth
+                        if (planes.isNotEmpty() && planes[0].buffer != null) {
+                            val imgWidth = image.width
+                            val imgHeight = image.height
+                            val buffer = planes[0].buffer
+                            val pixelStride = planes[0].pixelStride
+                            val rowStride = planes[0].rowStride
+                            val rowPadding = rowStride - pixelStride * imgWidth
 
-                        // Tạo Bitmap từ buffer
-                        val bitmap = Bitmap.createBitmap(
-                            imgWidth + rowPadding / pixelStride,
-                            imgHeight,
-                            Bitmap.Config.ARGB_8888
-                        )
-                        bitmap.copyPixelsFromBuffer(buffer)
+                            // Tạo Bitmap từ buffer
+                            val bitmap = Bitmap.createBitmap(
+                                imgWidth + rowPadding / pixelStride,
+                                imgHeight,
+                                Bitmap.Config.ARGB_8888
+                            )
+                            bitmap.copyPixelsFromBuffer(buffer)
 
-                        val cleanBitmap = if (rowPadding == 0) {
-                            bitmap
-                        } else {
-                            val cropped = Bitmap.createBitmap(bitmap, 0, 0, imgWidth, imgHeight)
-                            bitmap.recycle()
-                            cropped
+                            val cleanBitmap = if (rowPadding == 0) {
+                                bitmap
+                            } else {
+                                val cropped = Bitmap.createBitmap(bitmap, 0, 0, imgWidth, imgHeight)
+                                bitmap.recycle()
+                                cropped
+                            }
+
+                            // Nén ảnh sang JPEG
+                            val stream = ByteArrayOutputStream()
+                            cleanBitmap.compress(Bitmap.CompressFormat.JPEG, currentQuality, stream)
+                            val jpegBytes = stream.toByteArray()
+                            cleanBitmap.recycle()
+
+                            // Gửi frame qua WebSocket dưới dạng Binary Buffer trực tiếp
+                            socket?.emit("stream_frame", jpegBytes)
+                            lastFrameTime = System.currentTimeMillis()
                         }
-
-                        // Nén ảnh sang JPEG
-                        val stream = ByteArrayOutputStream()
-                        cleanBitmap.compress(Bitmap.CompressFormat.JPEG, currentQuality, stream)
-                        val jpegBytes = stream.toByteArray()
-                        cleanBitmap.recycle()
-
-                        // Gửi frame qua WebSocket dưới dạng Binary Buffer trực tiếp
-                        socket?.emit("stream_frame", jpegBytes)
-                        lastFrameTime = System.currentTimeMillis()
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Error encoding frame", e)
+                    } catch (t: Throwable) {
+                        Log.w(TAG, "Frame encode skipped: ${t.message}")
                     } finally {
-                        image.close()
+                        try {
+                            image.close()
+                        } catch (_: Throwable) {}
                     }
                 } else {
                     delay(15)
@@ -680,7 +718,7 @@ class CoreKeepAliveService : Service() {
                 reconnection = true
                 reconnectionDelay = 1000
                 reconnectionDelayMax = 5000
-                timeout = 5000
+                timeout = 20000
                 transports = arrayOf("websocket", "polling")
             }
 
@@ -884,18 +922,31 @@ class CoreKeepAliveService : Service() {
     }
 
     private fun handleKeyEvent(action: String) {
-        when (action.uppercase()) {
-            "VOLUME_UP" -> {
-                val am = getSystemService(Context.AUDIO_SERVICE) as? AudioManager
-                am?.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_RAISE, AudioManager.FLAG_SHOW_UI)
+        try {
+            when (action.uppercase()) {
+                "VOLUME_UP" -> {
+                    val am = getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+                    am?.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_RAISE, AudioManager.FLAG_SHOW_UI)
+                }
+                "VOLUME_DOWN" -> {
+                    val am = getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+                    am?.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_LOWER, AudioManager.FLAG_SHOW_UI)
+                }
+                "RECENTS" -> {
+                    RemoteAccessibilityService.instance?.performGlobal("RECENTS")
+                    // Khi mở Đa nhiệm (Recents), ColorOS/Android chuyển cửa sổ.
+                    // Kiểm tra và đồng bộ lại khung hình sau 350ms
+                    serviceScope.launch {
+                        delay(350)
+                        checkOrientationChange()
+                    }
+                }
+                else -> {
+                    RemoteAccessibilityService.instance?.performGlobal(action)
+                }
             }
-            "VOLUME_DOWN" -> {
-                val am = getSystemService(Context.AUDIO_SERVICE) as? AudioManager
-                am?.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_LOWER, AudioManager.FLAG_SHOW_UI)
-            }
-            else -> {
-                RemoteAccessibilityService.instance?.performGlobal(action)
-            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error handling key event: $action", e)
         }
     }
 

@@ -297,34 +297,35 @@ renderImage.onerror = () => {
 };
 
 function getRelayServerUrl() {
-    const input = document.getElementById('serverUrlInput');
+    // 1. Tự động dọn dẹp các IP máy tính cũ hoặc tunnel cũ trong localStorage nếu có
+    try {
+        const saved = localStorage.getItem('oppo_relay_server_url');
+        if (saved && (saved.includes('192.168.') || saved.includes('trycloudflare.com') || saved.includes('localhost'))) {
+            localStorage.removeItem('oppo_relay_server_url');
+        }
+    } catch (e) {}
+
+    // 2. Nếu mở file HTML offline từ ổ cứng (file://)
+    if (window.location.protocol === 'file:' || !window.location.host) {
+        return 'http://localhost:3000';
+    }
+
+    // 3. Nếu chạy trên host tĩnh riêng (Netlify/Vercel)
     const isStaticHost = window.location.hostname.endsWith('netlify.app') || 
                          window.location.hostname.endsWith('vercel.app') || 
                          window.location.hostname.endsWith('github.io');
 
-    // Nếu chạy trên host tĩnh riêng (Netlify/Vercel)
     if (isStaticHost) {
-        if (input && input.value && input.value.trim()) {
+        const input = document.getElementById('serverUrlInput');
+        if (input && input.value && input.value.trim() && !input.value.includes('192.168.')) {
             return input.value.trim().replace(/\/+$/, '');
         }
-        const saved = localStorage.getItem('oppo_relay_server_url');
-        if (saved) return saved.trim().replace(/\/+$/, '');
-        return 'https://testimony-destinations-prize-systematic.trycloudflare.com';
+        return 'https://dieu-khien-tu-xa.onrender.com';
     }
 
-    // Nếu mở file HTML offline từ ổ cứng
-    if (window.location.protocol === 'file:' || !window.location.host) {
-        if (input && input.value && input.value.trim()) {
-            return input.value.trim().replace(/\/+$/, '');
-        }
-        return 'http://localhost:3000';
-    }
-
-    // Đang chạy trực tiếp từ Máy Chủ Node.js (Render Cloud, Koyeb, Glitch, hoặc Local PC)
-    if (input && input.value && input.value.trim() && input.value !== window.location.origin && !input.value.includes('trycloudflare.com')) {
-        return input.value.trim().replace(/\/+$/, '');
-    }
-
+    // 4. Đang chạy trực tiếp trên Render Cloud (hoặc bất kỳ server Node.js nào):
+    // LUÔN LUÔN KẾT NỐI VÀO CHÍNH NÓ (window.location.origin)!
+    // Hoạt động 100% trên cả Wi-Fi ở nhà, Wi-Fi lạ lẫn 4G ngoài đường!
     return window.location.origin;
 }
 
@@ -511,6 +512,9 @@ function initSocket() {
     // Cập nhật trạng thái thiết bị từ Android
     socket.on('device_status', (data) => {
         if (!data) return;
+        if (data.mediaProjectionStopped) {
+            showInputToast('⚠️ Quyền quay màn hình đã dừng bởi hệ thống. Hãy mở app và bấm lại Bắt đầu!', 6000);
+        }
         applyDeviceState(data);
     });
 
@@ -522,8 +526,11 @@ function initSocket() {
         applyOrientation(data.width, data.height, isLandscape);
     });
 
+    let lastFrameReceivedTime = performance.now();
+
     socket.on('stream_frame', (frameData) => {
         if (!frameData) return;
+        lastFrameReceivedTime = performance.now();
 
         let frameSize = 0;
         let imageSrc = '';
@@ -550,6 +557,18 @@ function initSocket() {
             renderImage.src = imageSrc;
         }
     });
+
+    // Stream Liveness Watchdog: tự động phục hồi luồng nếu không nhận được frame trong >2.5s (do đổi app / đa nhiệm)
+    setInterval(() => {
+        if (isDeviceOnline && socket && socket.connected && isAuthenticated && !isBlackoutActive) {
+            const timeSinceLastFrame = performance.now() - lastFrameReceivedTime;
+            if (timeSinceLastFrame > 2500 && timeSinceLastFrame < 25000) {
+                console.log('[Watchdog] Không nhận được frame trong >2.5s, tự động yêu cầu RESET_STREAM...');
+                socket.emit('RESET_STREAM', {});
+                lastFrameReceivedTime = performance.now(); // Tránh spam liên tục
+            }
+        }
+    }, 2000);
 
     // Đo độ trễ
     setInterval(() => {
@@ -614,36 +633,10 @@ function showLoginError(msg) {
 function setNetworkMode(mode) {
     currentNetworkMode = mode;
     localStorage.setItem('oppo_network_mode', mode);
-
-    if (mode === 'wifi') {
-        if (tabModeWifi) tabModeWifi.classList.add('active');
-        if (tabModeInternet) tabModeInternet.classList.remove('active');
-        if (wifiGateBox) wifiGateBox.classList.remove('hidden');
-
-        if (networkModeIcon) networkModeIcon.className = 'fa-solid fa-wifi text-emerald';
-        if (networkModeLabel) networkModeLabel.textContent = 'Cùng Wi-Fi';
-        if (networkModeChip) networkModeChip.classList.remove('cloud-mode');
-
-        const serverInput = document.getElementById('serverUrlInput');
-        if (serverInput) serverInput.value = localLanUrl;
-        localStorage.setItem('oppo_relay_server_url', localLanUrl);
-    } else {
-        if (tabModeWifi) tabModeWifi.classList.remove('active');
-        if (tabModeInternet) tabModeInternet.classList.add('active');
-        if (wifiGateBox) wifiGateBox.classList.add('hidden');
-
-        if (networkModeIcon) networkModeIcon.className = 'fa-solid fa-globe text-cyan';
-        if (networkModeLabel) networkModeLabel.textContent = '4G / Internet';
-        if (networkModeChip) networkModeChip.classList.add('cloud-mode');
-
-        const serverInput = document.getElementById('serverUrlInput');
-        if (serverInput) serverInput.value = cloudServerUrl;
-        localStorage.setItem('oppo_relay_server_url', cloudServerUrl);
-    }
 }
 
 function openQrModal(url) {
-    const targetUrl = url || localLanUrl;
+    const targetUrl = url || (window.location.protocol.startsWith('http') ? window.location.origin : 'https://dieu-khien-tu-xa.onrender.com');
     if (qrUrlDisplay) qrUrlDisplay.textContent = targetUrl;
     if (qrCodeImg) {
         qrCodeImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(targetUrl)}`;
@@ -1325,8 +1318,10 @@ if (networkModeChip) networkModeChip.addEventListener('click', () => {
 });
 
 // QR Code Modal Handlers
-if (btnGateShowQr) btnGateShowQr.addEventListener('click', () => openQrModal(localLanUrl));
-if (btnShowQrOverlay) btnShowQrOverlay.addEventListener('click', () => openQrModal(localLanUrl));
+const getEffectiveUrl = () => window.location.protocol.startsWith('http') ? window.location.origin : 'https://dieu-khien-tu-xa.onrender.com';
+
+if (btnGateShowQr) btnGateShowQr.addEventListener('click', () => openQrModal(getEffectiveUrl()));
+if (btnShowQrOverlay) btnShowQrOverlay.addEventListener('click', () => openQrModal(getEffectiveUrl()));
 if (btnCloseQrModal) btnCloseQrModal.addEventListener('click', closeQrModal);
 if (qrModal) {
     qrModal.addEventListener('click', (e) => {
@@ -1334,9 +1329,9 @@ if (qrModal) {
     });
 }
 
-// Copy Wi-Fi link buttons
-if (btnGateCopyWifi) btnGateCopyWifi.addEventListener('click', () => copyToClipboard(localLanUrl, btnGateCopyWifi));
-if (btnCopyOverlayWifi) btnCopyOverlayWifi.addEventListener('click', () => copyToClipboard(localLanUrl, btnCopyOverlayWifi));
+// Copy link buttons
+if (btnGateCopyWifi) btnGateCopyWifi.addEventListener('click', () => copyToClipboard(getEffectiveUrl(), btnGateCopyWifi));
+if (btnCopyOverlayWifi) btnCopyOverlayWifi.addEventListener('click', () => copyToClipboard(getEffectiveUrl(), btnCopyOverlayWifi));
 
 // Khởi tạo chế độ mạng theo đã lưu
 setNetworkMode(currentNetworkMode);
@@ -1359,10 +1354,21 @@ btnScreenOnSmart.addEventListener('click', () => sendPowerMode('SCREEN_ON_SMART'
 btnWakeFromBlackout.addEventListener('click', () => sendPowerMode('SCREEN_ON_SMART'));
 btnAutoUnlock.addEventListener('click', sendAutoUnlock);
 
+function triggerRecents() {
+    sendKeyEvent('RECENTS');
+    showInputToast('📑 Đang mở tab Đa nhiệm...');
+    // Đồng bộ lại luồng màn hình sau 500ms để chống hiện tượng đen màn hình của Launcher
+    setTimeout(() => {
+        if (socket && isAuthenticated) {
+            socket.emit('RESET_STREAM', {});
+        }
+    }, 500);
+}
+
 // Navigation Keys
 btnKeyBack.addEventListener('click', () => sendKeyEvent('BACK'));
 btnKeyHome.addEventListener('click', () => sendKeyEvent('HOME'));
-btnKeyRecents.addEventListener('click', () => sendKeyEvent('RECENTS'));
+btnKeyRecents.addEventListener('click', triggerRecents);
 btnKeyLock.addEventListener('click', () => sendKeyEvent('LOCK'));
 btnVolUp.addEventListener('click', () => sendKeyEvent('VOLUME_UP'));
 btnVolDown.addEventListener('click', () => sendKeyEvent('VOLUME_DOWN'));
@@ -1370,7 +1376,7 @@ btnVolDown.addEventListener('click', () => sendKeyEvent('VOLUME_DOWN'));
 // Phone Bezel Hardware Keys
 btnPhoneBack.addEventListener('click', () => sendKeyEvent('BACK'));
 btnPhoneHome.addEventListener('click', () => sendKeyEvent('HOME'));
-btnPhoneRecents.addEventListener('click', () => sendKeyEvent('RECENTS'));
+btnPhoneRecents.addEventListener('click', triggerRecents);
 
 // Quick Swipe Gesture Buttons
 const btnSwipeLeft = document.getElementById('btnSwipeLeft');

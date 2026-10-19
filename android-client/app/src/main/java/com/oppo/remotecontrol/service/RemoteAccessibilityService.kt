@@ -349,16 +349,22 @@ class RemoteAccessibilityService : AccessibilityService() {
      * Thực hiện phím hệ thống toàn cục
      */
     fun performGlobal(action: String) {
-        when (action.uppercase()) {
-            "BACK" -> performGlobalAction(GLOBAL_ACTION_BACK)
-            "HOME" -> performGlobalAction(GLOBAL_ACTION_HOME)
-            "RECENTS" -> performGlobalAction(GLOBAL_ACTION_RECENTS)
-            "LOCK" -> performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN)
-            "NOTIFICATIONS" -> performGlobalAction(GLOBAL_ACTION_NOTIFICATIONS)
-            "QUICK_SETTINGS" -> performGlobalAction(GLOBAL_ACTION_QUICK_SETTINGS)
-            "BACKSPACE" -> deleteLastChar()
-            "ENTER" -> handleEnterKey()
-            else -> Log.w(TAG, "Unknown global action: $action")
+        mainHandler.post {
+            try {
+                when (action.uppercase()) {
+                    "BACK" -> performGlobalAction(GLOBAL_ACTION_BACK)
+                    "HOME" -> performGlobalAction(GLOBAL_ACTION_HOME)
+                    "RECENTS" -> performGlobalAction(GLOBAL_ACTION_RECENTS)
+                    "LOCK" -> performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN)
+                    "NOTIFICATIONS" -> performGlobalAction(GLOBAL_ACTION_NOTIFICATIONS)
+                    "QUICK_SETTINGS" -> performGlobalAction(GLOBAL_ACTION_QUICK_SETTINGS)
+                    "BACKSPACE" -> deleteLastChar()
+                    "ENTER" -> handleEnterKey()
+                    else -> Log.w(TAG, "Unknown global action: $action")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error executing global action: $action", e)
+            }
         }
     }
 

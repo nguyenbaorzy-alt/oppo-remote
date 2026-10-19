@@ -22,37 +22,25 @@
                 <p>Hệ Thống Điều Khiển Từ Xa OPPO ColorOS</p>
             </div>
 
-            <!-- Network Mode Tabs (Cùng Wi-Fi vs Internet 4G) -->
-            <div class="network-mode-tabs">
-                <button type="button" class="btn-mode-tab active" id="tabModeWifi">
-                    <i class="fa-solid fa-wifi"></i> Cùng Wi-Fi
-                </button>
-                <button type="button" class="btn-mode-tab" id="tabModeInternet">
-                    <i class="fa-solid fa-globe"></i> 4G / Ngoài Đường
-                </button>
-            </div>
-
-            <!-- Wi-Fi Notice Box -->
-            <div id="wifiGateBox" class="wifi-notice-box">
-                <div class="wifi-notice-content">
-                    <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-                        <span style="font-size: 0.8rem; font-weight: 700; color: #10b981;">
-                            <i class="fa-solid fa-signal-perfect"></i> Link cùng mạng Wi-Fi:
-                        </span>
-                        <button type="button" id="btnGateShowQr" class="btn-mini-qr" title="Quét mã QR bằng điện thoại">
-                            <i class="fa-solid fa-qrcode"></i> Mã QR
-                        </button>
-                    </div>
-                    <div style="display: flex; gap: 6px; align-items: center; margin-top: 6px; width: 100%;">
-                        <code id="wifiGateUrlText" style="flex: 1; padding: 6px 10px; background: rgba(0,0,0,0.5); border-radius: 6px; color: #34d399; font-size: 0.82rem; font-family: monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">http://192.168.30.102:3000</code>
-                        <button type="button" id="btnGateCopyWifi" class="btn-mini-copy" title="Sao chép link">
-                            <i class="fa-regular fa-copy"></i>
-                        </button>
-                    </div>
-                    <small style="color: #94a3b8; font-size: 0.72rem; margin-top: 4px; display: block;">
-                        * Điện thoại khác chỉ cần kết nối cùng Wi-Fi và vào link trên
-                    </small>
+            <!-- Universal Cloud Sync Badge (Dùng chung cho cả Wi-Fi & 4G) -->
+            <div class="cloud-sync-banner" style="background: rgba(6, 182, 212, 0.1); border: 1px solid rgba(6, 182, 212, 0.3); border-radius: 12px; padding: 10px 14px; text-align: left; margin-bottom: 8px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-size: 0.8rem; font-weight: 700; color: #38bdf8;">
+                        <i class="fa-solid fa-cloud"></i> Máy chủ Đám Mây 24/7 (Wi-Fi & 4G)
+                    </span>
+                    <button type="button" id="btnGateShowQr" class="btn-mini-qr" style="background: rgba(6, 182, 212, 0.2); border-color: rgba(6, 182, 212, 0.4); color: #38bdf8;" title="Quét mã QR bằng điện thoại">
+                        <i class="fa-solid fa-qrcode"></i> Mã QR
+                    </button>
                 </div>
+                <div style="display: flex; gap: 6px; align-items: center; margin-top: 6px;">
+                    <code id="wifiGateUrlText" style="flex: 1; padding: 6px 10px; background: rgba(0,0,0,0.5); border-radius: 6px; color: #38bdf8; font-size: 0.8rem; font-family: monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">https://dieu-khien-tu-xa.onrender.com</code>
+                    <button type="button" id="btnGateCopyWifi" class="btn-mini-copy" style="background: rgba(6, 182, 212, 0.2); color: #38bdf8;" title="Sao chép link">
+                        <i class="fa-regular fa-copy"></i>
+                    </button>
+                </div>
+                <small style="color: #94a3b8; font-size: 0.72rem; margin-top: 4px; display: block;">
+                    * Đồng bộ 1 link duy nhất: Dùng được ở nhà (Wi-Fi) lẫn ra đường (4G)
+                </small>
             </div>
 
             <form id="loginForm" class="login-form" autocomplete="on">
@@ -250,24 +238,24 @@
                                 <i class="fa-solid fa-download"></i> Tải Về App APK Trực Tiếp
                             </a>
 
-                            <!-- Wi-Fi LAN Quick Connect Card -->
-                            <div class="wifi-lan-card" style="margin-bottom: 14px; padding: 12px 14px; background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 12px; text-align: left; width: 100%; box-sizing: border-box;">
+                            <!-- Cloud Permanent Connect Card -->
+                            <div class="wifi-lan-card" style="margin-bottom: 14px; padding: 12px 14px; background: rgba(6, 182, 212, 0.08); border: 1px solid rgba(6, 182, 212, 0.3); border-radius: 12px; text-align: left; width: 100%; box-sizing: border-box;">
                                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                                    <span style="font-size: 0.82rem; font-weight: 700; color: #10b981;">
-                                        <i class="fa-solid fa-wifi"></i> Dùng Chung Mạng Wi-Fi:
+                                    <span style="font-size: 0.82rem; font-weight: 700; color: #38bdf8;">
+                                        <i class="fa-solid fa-cloud"></i> Đường Link Điều Khiển 24/7 (Wi-Fi & 4G):
                                     </span>
-                                    <button type="button" id="btnShowQrOverlay" style="background: rgba(16, 185, 129, 0.2); border: 1px solid rgba(16, 185, 129, 0.4); color: #fff; padding: 3px 8px; border-radius: 6px; font-size: 0.72rem; cursor: pointer;">
+                                    <button type="button" id="btnShowQrOverlay" style="background: rgba(6, 182, 212, 0.2); border: 1px solid rgba(6, 182, 212, 0.4); color: #38bdf8; padding: 3px 8px; border-radius: 6px; font-size: 0.72rem; cursor: pointer;">
                                         <i class="fa-solid fa-qrcode"></i> Quét Mã QR
                                     </button>
                                 </div>
                                 <div style="display: flex; gap: 8px; align-items: center;">
-                                    <code id="wifiLanOverlayText" style="flex: 1; padding: 7px 10px; background: rgba(0, 0, 0, 0.5); border-radius: 6px; color: #34d399; font-size: 0.85rem; font-family: monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">http://192.168.30.102:3000</code>
-                                    <button type="button" id="btnCopyOverlayWifi" style="padding: 7px 12px; background: #10b981; color: #000; border: none; border-radius: 6px; font-weight: 700; font-size: 0.78rem; cursor: pointer; white-space: nowrap;">
+                                    <code id="wifiLanOverlayText" style="flex: 1; padding: 7px 10px; background: rgba(0, 0, 0, 0.5); border-radius: 6px; color: #38bdf8; font-size: 0.85rem; font-family: monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">https://dieu-khien-tu-xa.onrender.com</code>
+                                    <button type="button" id="btnCopyOverlayWifi" style="padding: 7px 12px; background: #06b6d4; color: #fff; border: none; border-radius: 6px; font-weight: 700; font-size: 0.78rem; cursor: pointer; white-space: nowrap;">
                                         <i class="fa-regular fa-copy"></i> Sao chép
                                     </button>
                                 </div>
-                                <small style="color: #6ee7b7; font-size: 0.72rem; display: block; margin-top: 5px;">
-                                    * Mở link này trên điện thoại khác cùng bắt Wi-Fi nhà bạn để điều khiển siêu nhanh!
+                                <small style="color: #94a3b8; font-size: 0.72rem; display: block; margin-top: 5px;">
+                                    * Dùng link này trên điện thoại điều khiển: hoạt động cả khi cùng Wi-Fi lẫn dùng 4G ngoài đường!
                                 </small>
                             </div>
 

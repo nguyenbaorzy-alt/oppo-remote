@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
+import android.media.projection.MediaProjectionConfig
 import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.Bundle
@@ -154,7 +155,13 @@ class MainActivity : AppCompatActivity() {
             }
 
             // Mở hộp thoại xin quyền quay màn hình của hệ thống Android
-            val captureIntent = mediaProjectionManager.createScreenCaptureIntent()
+            // Trên Android 14+ (API 34): cấu hình Entire Screen để không bị ngắt kết nối/đen màn khi mở Đa nhiệm
+            val captureIntent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                val config = MediaProjectionConfig.createConfigForDefaultDisplay()
+                mediaProjectionManager.createScreenCaptureIntent(config)
+            } else {
+                mediaProjectionManager.createScreenCaptureIntent()
+            }
             screenCaptureLauncher.launch(captureIntent)
         }
 
